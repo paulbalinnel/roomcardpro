@@ -1,0 +1,7 @@
+{
+  "name": "RoomPro Card",
+  "filename": "roompro-card.js",
+  "content_in_root": true,
+  "render_readme": true,
+  "homeassistant": "2023.8.0"
+}
