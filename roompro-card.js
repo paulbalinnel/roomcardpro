@@ -82,6 +82,26 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _sensorChanged(index, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sensors = cfg.sensors ? [...cfg.sensors] : [];
+    cfg.sensors[index] = { ...cfg.sensors[index], [key]: value };
+    this._emit(cfg);
+  }
+
+  _addSensor() {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sensors = cfg.sensors ? [...cfg.sensors] : [];
+    cfg.sensors.push({ entity: '', prefix: '', unit: '' });
+    this._emit(cfg);
+  }
+
+  _removeSensor(index) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sensors = (cfg.sensors || []).filter((_, i) => i !== index);
+    this._emit(cfg);
+  }
+
   _emit(cfg) {
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: cfg },
@@ -100,6 +120,15 @@ class RoomProCardEditor extends LitElement {
           .value=${this._config.name || ''}
           @input=${(e) => this._topChanged(e, 'name')}>
         </ha-textfield>
+
+        <div class="slider-row">
+          <label>Banner name font size: <strong>${this._config.header_font_size ?? 18}px</strong></label>
+          <ha-slider
+            min="12" max="42" step="1"
+            .value=${this._config.header_font_size ?? 18}
+            @change=${(e) => this._topValue('header_font_size', parseInt(e.target.value, 10))}>
+          </ha-slider>
+        </div>
 
         <div class="field-label">Background Image</div>
         <ha-selector
@@ -130,11 +159,45 @@ class RoomProCardEditor extends LitElement {
           <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
         </mwc-button>
 
-        <div class="hint">
-          Scene buttons keep their <code>scenes:</code> list and read-only
-          <code>sensors:</code> are still edited in YAML mode. Everything else is editable here.
-        </div>
+        <div class="section-title">Sensors (header strip)</div>
+        ${this._renderSensorsEditor()}
+
+        <mwc-button raised class="add-btn" @click=${this._addSensor}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Sensor
+        </mwc-button>
       </div>
+    `;
+  }
+
+  _renderSensorsEditor() {
+    const sensors = this._config.sensors || [];
+    return html`
+      ${sensors.map((s, si) => html`
+        <div class="scene-row">
+          <div class="scene-row-header">
+            <span>Sensor ${si + 1}</span>
+            <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeSensor(si)}></ha-icon>
+          </div>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${s.entity || ''}
+            .includeDomains=${['sensor', 'binary_sensor']}
+            label="Sensor"
+            allow-custom-entity
+            @value-changed=${(e) => this._sensorChanged(si, 'entity', e.detail.value)}>
+          </ha-entity-picker>
+          <ha-textfield
+            label="Prefix (e.g. Temp:)"
+            .value=${s.prefix || ''}
+            @input=${(e) => this._sensorChanged(si, 'prefix', e.target.value)}>
+          </ha-textfield>
+          <ha-textfield
+            label="Unit (blank = use entity's)"
+            .value=${s.unit || ''}
+            @input=${(e) => this._sensorChanged(si, 'unit', e.target.value)}>
+          </ha-textfield>
+        </div>
+      `)}
     `;
   }
 
@@ -180,6 +243,15 @@ class RoomProCardEditor extends LitElement {
           label="Icon"
           @value-changed=${(e) => this._buttonChanged(i, 'icon', e.detail.value)}>
         </ha-icon-picker>
+
+        <div class="slider-row">
+          <label>Name font size: <strong>${ent.font_size ?? 11}px</strong></label>
+          <ha-slider
+            min="8" max="20" step="1"
+            .value=${ent.font_size ?? 11}
+            @change=${(e) => this._buttonChanged(i, 'font_size', parseInt(e.target.value, 10))}>
+          </ha-slider>
+        </div>
 
         <div class="color-grid">
           ${this._colorField('Background', ent.background_color, '#1e1e1e', (v) => this._buttonChanged(i, 'background_color', v))}
@@ -444,6 +516,7 @@ class RoomProCard extends LitElement {
       parts.push(`border-color:${ent.glow_color}`);
       parts.push(`box-shadow:0 0 15px ${ent.glow_color}`);
     }
+    if (ent.font_size) parts.push(`--btn-label-size:${ent.font_size}px`);
     return parts.join(';');
   }
 
@@ -454,15 +527,17 @@ class RoomProCard extends LitElement {
   render() {
     if (!this._config || !this._hass) return html``;
 
-    const { name, background_image, thumbnail, status_entity, entities } = this._config;
+    const { name, background_image, thumbnail, status_entity, entities, header_font_size } = this._config;
     const statusState = status_entity ? this._hass.states[status_entity] : null;
     const isMotion = statusState && statusState.state === 'on';
 
     const entityCount = entities.length;
     const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
 
+    const containerStyle = header_font_size ? `--room-title-font-size:${header_font_size}px` : '';
+
     return html`
-      <div class="card-container">
+      <div class="card-container" style=${containerStyle}>
         <div class="bg-image" style="background-image: url('${background_image}');"></div>
         
         <div class="header">
@@ -645,7 +720,7 @@ class RoomProCard extends LitElement {
       }
 
       .title {
-        font-size: 1.1rem;
+        font-size: var(--room-title-font-size, 1.1rem);
         font-weight: 700;
         letter-spacing: -0.2px;
         text-shadow: 0 1px 3px rgba(0,0,0,0.5);
@@ -705,7 +780,7 @@ class RoomProCard extends LitElement {
       }
 
       .btn-label {
-        font-size: 0.7rem;
+        font-size: var(--btn-label-size, 0.7rem);
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
