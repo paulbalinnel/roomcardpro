@@ -47,7 +47,7 @@ class RoomProCardEditor extends LitElement {
       icon: 'mdi:lightbulb',
       background_color: '#1e1e1e',
       glow_color: '#3b82f6',
-      border_color: '#3b82f6',
+      border_color: '#808080',
       border_radius: 16,
     });
     this._emit(cfg);
@@ -118,7 +118,7 @@ class RoomProCardEditor extends LitElement {
         <ha-expansion-panel outlined .expanded=${true} header="General">
           <div class="panel-body">
             <ha-textfield
-              label="Room Name"
+              label="Banner Name"
               .value=${this._config.name || ''}
               @input=${(e) => this._topChanged(e, 'name')}>
             </ha-textfield>
@@ -172,18 +172,21 @@ class RoomProCardEditor extends LitElement {
   }
 
   _imageField(key, label) {
+    const val = this._config[key] || '';
     return html`
       <div class="field-label">${label}</div>
       <ha-textfield
-        label="URL or /local path"
-        .value=${this._config[key] || ''}
+        label="Image URL or /local path (e.g. /local/room.jpg)"
+        .value=${val}
         @input=${(e) => this._topValue(key, e.target.value)}>
       </ha-textfield>
-      <ha-picture-upload
-        .hass=${this.hass}
-        .value=${this._config[key] || null}
-        @change=${(e) => this._topValue(key, e.target.value)}>
-      </ha-picture-upload>
+      ${val
+        ? html`
+            <div class="img-current">Current: <code>${val}</code></div>
+            <img class="img-preview" src=${val} alt="" @error=${(e) => { e.target.style.display = 'none'; }} />
+          `
+        : html`<div class="img-current">No image set. Type a URL above, or put a file in
+            <code>config/www/</code> and reference it as <code>/local/&lt;file&gt;</code>.</div>`}
     `;
   }
 
@@ -326,7 +329,7 @@ class RoomProCardEditor extends LitElement {
 
         <div class="color-grid">
           ${this._colorField('Background', ent.background_color, '#1e1e1e', (v) => this._buttonChanged(i, 'background_color', v))}
-          ${this._colorField('Edge color', ent.border_color, '#3b82f6', (v) => this._buttonChanged(i, 'border_color', v))}
+          ${this._colorField('Edge color', ent.border_color, '#808080', (v) => this._buttonChanged(i, 'border_color', v))}
           ${this._colorField('Glow (on)', ent.glow_color, '#3b82f6', (v) => this._buttonChanged(i, 'glow_color', v))}
         </div>
 
@@ -515,6 +518,21 @@ class RoomProCardEditor extends LitElement {
         color: var(--secondary-text-color);
         margin-bottom: -8px;
       }
+      .img-current {
+        font-size: 0.75rem;
+        color: var(--secondary-text-color);
+        word-break: break-all;
+      }
+      .img-current code {
+        color: var(--primary-text-color);
+      }
+      .img-preview {
+        width: 100%;
+        max-height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color, #444);
+      }
       .add-btn {
         margin-top: 4px;
       }
@@ -571,9 +589,9 @@ class RoomProCard extends LitElement {
         { entity: "sensor.living_room_humidity", prefix: "Hum:", unit: "%" }
       ],
       entities: [
-        { type: "light", entity: "light.living_room_main", name: "Main Light", icon: "mdi:lightbulb", background_color: "#1e1e1e", glow_color: "#facc15", border_color: "#3b82f6", border_radius: 16 },
-        { type: "audio", entity: "media_player.living_room_speaker", name: "Speaker", icon: "mdi:speaker", background_color: "#1e1e1e", glow_color: "#22d3ee", border_color: "#3b82f6", border_radius: 16 },
-        { type: "scene", name: "Scenes", icon: "mdi:palette", background_color: "#1e1e1e", glow_color: "#a855f7", border_color: "#3b82f6", border_radius: 16, scenes: [{ entity: "scene.movie_mode", name: "Movie" }] },
+        { type: "light", entity: "light.living_room_main", name: "Main Light", icon: "mdi:lightbulb", background_color: "#1e1e1e", glow_color: "#facc15", border_color: "#808080", border_radius: 16 },
+        { type: "audio", entity: "media_player.living_room_speaker", name: "Speaker", icon: "mdi:speaker", background_color: "#1e1e1e", glow_color: "#22d3ee", border_color: "#808080", border_radius: 16 },
+        { type: "scene", name: "Scenes", icon: "mdi:palette", background_color: "#1e1e1e", glow_color: "#a855f7", border_color: "#808080", border_radius: 16, scenes: [{ entity: "scene.movie_mode", name: "Movie" }] },
         { type: "power", name: "All Off", icon: "mdi:power", entity: "script.turn_off_living_room", background_color: "#3b0d0d", glow_color: "#ef4444", border_color: "#ef4444", border_radius: 16 }
       ]
     };
@@ -598,7 +616,7 @@ class RoomProCard extends LitElement {
     // Single source of truth for button colours so nothing in CSS overrides
     // a user's chosen background/edge/glow.
     const bg = ent.background_color || 'rgba(0,0,0,0.5)';
-    const edge = (isActive && ent.glow_color) ? ent.glow_color : (ent.border_color || 'rgba(255,255,255,0.15)');
+    const edge = (isActive && ent.glow_color) ? ent.glow_color : (ent.border_color || '#808080');
     const parts = [`background:${bg}`, `border-color:${edge}`];
     if (ent.border_radius !== undefined && ent.border_radius !== null && ent.border_radius !== '') {
       parts.push(`border-radius:${ent.border_radius}px`);
