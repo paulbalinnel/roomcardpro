@@ -19,6 +19,18 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  // For widgets that emit value via the value-changed event detail (ha-selector).
+  _topValue(key, value) {
+    if (!this._config) return;
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    if (value === undefined || value === null || value === '') {
+      delete cfg[key];
+    } else {
+      cfg[key] = value;
+    }
+    this._emit(cfg);
+  }
+
   _buttonChanged(index, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     cfg.entities = cfg.entities ? [...cfg.entities] : [];
@@ -89,17 +101,21 @@ class RoomProCardEditor extends LitElement {
           @input=${(e) => this._topChanged(e, 'name')}>
         </ha-textfield>
 
-        <ha-textfield
-          label="Background Image URL (e.g., /local/room.jpg)"
+        <div class="field-label">Background Image</div>
+        <ha-selector
+          .hass=${this.hass}
+          .selector=${{ image: {} }}
           .value=${this._config.background_image || ''}
-          @input=${(e) => this._topChanged(e, 'background_image')}>
-        </ha-textfield>
+          @value-changed=${(e) => this._topValue('background_image', e.detail.value)}>
+        </ha-selector>
 
-        <ha-textfield
-          label="Thumbnail Image URL"
+        <div class="field-label">Thumbnail Image</div>
+        <ha-selector
+          .hass=${this.hass}
+          .selector=${{ image: {} }}
           .value=${this._config.thumbnail || ''}
-          @input=${(e) => this._topChanged(e, 'thumbnail')}>
-        </ha-textfield>
+          @value-changed=${(e) => this._topValue('thumbnail', e.detail.value)}>
+        </ha-selector>
 
         <ha-textfield
           label="Status Entity (Motion Sensor)"
@@ -328,8 +344,15 @@ class RoomProCardEditor extends LitElement {
       ha-textfield,
       ha-select,
       ha-entity-picker,
-      ha-icon-picker {
+      ha-icon-picker,
+      ha-selector {
         width: 100%;
+        display: block;
+      }
+      .field-label {
+        font-size: 0.85rem;
+        color: var(--secondary-text-color);
+        margin-bottom: -8px;
       }
       .add-btn {
         margin-top: 4px;
