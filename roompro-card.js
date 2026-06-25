@@ -651,18 +651,45 @@ class RoomProCard extends LitElement {
     }
   }
 
+  _renderStatusIcons() {
+    const statusList = Array.isArray(this._config.status_entities)
+      ? this._config.status_entities
+      : (this._config.status_entity ? [this._config.status_entity] : []);
+
+    const INACTIVE = ['off', 'closed', 'idle', 'standby', 'paused', 'unavailable', 'unknown', 'none', 'not_home', 'locked', 'disarmed', '0', ''];
+    const DOMAIN_ICONS = {
+      binary_sensor: 'mdi:motion-sensor',
+      media_player: 'mdi:cast',
+      light: 'mdi:lightbulb',
+      switch: 'mdi:toggle-switch',
+      cover: 'mdi:window-shutter',
+      lock: 'mdi:lock',
+      fan: 'mdi:fan',
+      climate: 'mdi:thermostat',
+      person: 'mdi:account',
+      device_tracker: 'mdi:account',
+      sensor: 'mdi:eye',
+    };
+
+    return statusList
+      .filter((eid) => eid)
+      .map((eid) => {
+        const s = this._hass.states[eid];
+        const active = s && !INACTIVE.includes(String(s.state).toLowerCase());
+        const domain = eid.split('.')[0];
+        const icon = (s && s.attributes && s.attributes.icon) || DOMAIN_ICONS[domain] || 'mdi:circle-outline';
+        return html`
+          <div class="status-icon ${active ? 'active' : ''}" title=${eid}>
+            <ha-icon icon=${icon}></ha-icon>
+          </div>
+        `;
+      });
+  }
+
   render() {
     if (!this._config || !this._hass) return html``;
 
     const { name, background_image, thumbnail, entities, header_font_size } = this._config;
-    const statusList = Array.isArray(this._config.status_entities)
-      ? this._config.status_entities
-      : (this._config.status_entity ? [this._config.status_entity] : []);
-    const INACTIVE = ['off', 'closed', 'idle', 'standby', 'paused', 'unavailable', 'unknown', 'none', 'not_home', 'locked', 'disarmed', '0', ''];
-    const isMotion = statusList.some((eid) => {
-      const s = this._hass.states[eid];
-      return s && !INACTIVE.includes(String(s.state).toLowerCase());
-    });
 
     const entityCount = entities.length;
     const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
@@ -679,8 +706,8 @@ class RoomProCard extends LitElement {
             <div class="title">${name}</div>
             <div class="subtitle">${this._getSensorString()}</div>
           </div>
-          <div class="status-icon ${isMotion ? 'active' : ''}">
-            <ha-icon icon="mdi:motion-sensor"></ha-icon>
+          <div class="status-icons">
+            ${this._renderStatusIcons()}
           </div>
         </div>
 
@@ -887,13 +914,19 @@ class RoomProCard extends LitElement {
         margin-top: 2px;
       }
 
+      .status-icons {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
       .status-icon {
         opacity: 0.4;
         transition: all 0.3s ease;
       }
       .status-icon.active {
         opacity: 1;
-        color: #4ade80; 
+        color: #4ade80;
         text-shadow: 0 0 10px #4ade80;
       }
 
