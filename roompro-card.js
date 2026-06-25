@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js";
 
 class RoomProCardEditor extends LitElement {
   static get properties() {
@@ -79,7 +79,9 @@ class RoomProCardEditor extends LitElement {
     `;
   }
 }
-customElements.define('roompro-card-editor', RoomProCardEditor);
+if (!customElements.get('roompro-card-editor')) {
+  customElements.define('roompro-card-editor', RoomProCardEditor);
+}
 
 class RoomProCard extends LitElement {
   static get properties() {
@@ -104,6 +106,11 @@ class RoomProCard extends LitElement {
 
   static getConfigElement() {
     return document.createElement('roompro-card-editor');
+  }
+
+  // Rough height in 50px rows for HA's masonry layout.
+  getCardSize() {
+    return this._config && this._config.entities && this._config.entities.length > 5 ? 4 : 3;
   }
 
   static getStubConfig() {
@@ -134,9 +141,9 @@ class RoomProCard extends LitElement {
     }).filter(Boolean).join(' | ');
   }
 
-  _handleClick(entityId, domain, action = 'toggle') {
+  _handleClick(entityId, domain, action = 'toggle', data = {}) {
     if (!entityId || !this._hass) return;
-    this._hass.callService(domain, action, { entity_id: entityId });
+    this._hass.callService(domain, action, { entity_id: entityId, ...data });
   }
 
   _togglePopup(type) {
@@ -184,9 +191,13 @@ class RoomProCard extends LitElement {
     let label = ent.name || (stateObj ? stateObj.attributes.friendly_name : 'Unknown');
     let action = () => {};
 
-    if (ent.type === 'light' || ent.type === 'switch') {
+    if (ent.type === 'light') {
       isActive = stateObj && stateObj.state === 'on';
       icon = isActive ? 'mdi:lightbulb-on' : (ent.icon || 'mdi:lightbulb-outline');
+      action = () => this._handleClick(ent.entity, ent.type);
+    } else if (ent.type === 'switch') {
+      isActive = stateObj && stateObj.state === 'on';
+      icon = ent.icon || (isActive ? 'mdi:toggle-switch' : 'mdi:toggle-switch-off');
       action = () => this._handleClick(ent.entity, ent.type);
     } else if (ent.type === 'audio') {
       isActive = stateObj && stateObj.state === 'playing';
@@ -222,7 +233,9 @@ class RoomProCard extends LitElement {
 
     if (this._activePopup === 'audio') {
       const audioEnt = this._config.entities.find(e => e.type === 'audio');
-      title = audioEnt.name || 'Audio Control';
+      const audioState = audioEnt ? this._hass.states[audioEnt.entity] : null;
+      const isMuted = audioState && audioState.attributes.is_volume_muted;
+      title = (audioEnt && audioEnt.name) || 'Audio Control';
       content = html`
         <div class="popup-row">
           <div class="popup-btn" @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_down')}>
@@ -231,8 +244,9 @@ class RoomProCard extends LitElement {
           <div class="popup-btn" @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_up')}>
             <ha-icon icon="mdi:volume-plus"></ha-icon>
           </div>
-          <div class="popup-btn" @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'mute')}>
-            <ha-icon icon="mdi:volume-mute"></ha-icon>
+          <div class="popup-btn ${isMuted ? 'active' : ''}"
+               @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_mute', { is_volume_muted: !isMuted })}>
+            <ha-icon icon="${isMuted ? 'mdi:volume-off' : 'mdi:volume-mute'}"></ha-icon>
           </div>
         </div>
       `;
@@ -471,6 +485,10 @@ class RoomProCard extends LitElement {
         cursor: pointer;
       }
       .popup-btn:active { background: rgba(255,255,255,0.2); }
+      .popup-btn.active {
+        background: rgba(239, 68, 68, 0.25);
+        color: #f87171;
+      }
 
       .popup-scene-list {
         display: flex;
@@ -496,4 +514,18 @@ class RoomProCard extends LitElement {
   }
 }
 
-customElements.define('roompro-card', RoomProCard);
+if (!customElements.get('roompro-card')) {
+  customElements.define('roompro-card', RoomProCard);
+}
+
+// Register so the card appears in HA's visual "Add Card" picker.
+window.customCards = window.customCards || [];
+if (!window.customCards.some((c) => c.type === 'roompro-card')) {
+  window.customCards.push({
+    type: 'roompro-card',
+    name: 'RoomPro Card',
+    description: 'A premium room control card with glassmorphism, responsive grids, and internal popups.',
+    preview: true,
+    documentationURL: 'https://github.com/paulbalinnel/roomcardpro',
+  });
+}
