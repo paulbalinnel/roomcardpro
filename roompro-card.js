@@ -47,6 +47,29 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _sceneChanged(btnIndex, sceneIndex, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.scenes = btn.scenes ? [...btn.scenes] : [];
+    btn.scenes[sceneIndex] = { ...btn.scenes[sceneIndex], [key]: value };
+    this._emit(cfg);
+  }
+
+  _addScene(btnIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.scenes = btn.scenes ? [...btn.scenes] : [];
+    btn.scenes.push({ entity: '', name: 'New Scene', icon: 'mdi:palette' });
+    this._emit(cfg);
+  }
+
+  _removeScene(btnIndex, sceneIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.scenes = (btn.scenes || []).filter((_, i) => i !== sceneIndex);
+    this._emit(cfg);
+  }
+
   _emit(cfg) {
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: cfg },
@@ -156,6 +179,46 @@ class RoomProCardEditor extends LitElement {
             @change=${(e) => this._buttonChanged(i, 'border_radius', parseInt(e.target.value, 10))}>
           </ha-slider>
         </div>
+
+        ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
+      </div>
+    `;
+  }
+
+  _renderScenesEditor(ent, btnIndex) {
+    const scenes = ent.scenes || [];
+    return html`
+      <div class="scenes-editor">
+        <div class="be-subtitle">Scenes (shown as buttons in the popup)</div>
+        ${scenes.map((s, si) => html`
+          <div class="scene-row">
+            <div class="scene-row-header">
+              <span>Scene ${si + 1}</span>
+              <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeScene(btnIndex, si)}></ha-icon>
+            </div>
+            <ha-entity-picker
+              .hass=${this.hass}
+              .value=${s.entity || ''}
+              .includeDomains=${['scene', 'script']}
+              label="Scene / Script"
+              allow-custom-entity
+              @value-changed=${(e) => this._sceneChanged(btnIndex, si, 'entity', e.detail.value)}>
+            </ha-entity-picker>
+            <ha-textfield
+              label="Label"
+              .value=${s.name || ''}
+              @input=${(e) => this._sceneChanged(btnIndex, si, 'name', e.target.value)}>
+            </ha-textfield>
+            <ha-icon-picker
+              .value=${s.icon || ''}
+              label="Icon"
+              @value-changed=${(e) => this._sceneChanged(btnIndex, si, 'icon', e.detail.value)}>
+            </ha-icon-picker>
+          </div>
+        `)}
+        <mwc-button outlined class="add-scene" @click=${() => this._addScene(btnIndex)}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Scene
+        </mwc-button>
       </div>
     `;
   }
@@ -231,6 +294,36 @@ class RoomProCardEditor extends LitElement {
       }
       .slider-row label {
         font-size: 0.85rem;
+      }
+      .scenes-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px dashed var(--divider-color, #555);
+      }
+      .be-subtitle {
+        font-weight: 600;
+        font-size: 0.85rem;
+      }
+      .scene-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 8px;
+        background: rgba(127, 127, 127, 0.1);
+      }
+      .scene-row-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+      }
+      .scene-row-header .del {
+        cursor: pointer;
+        color: var(--error-color, #f87171);
       }
       ha-textfield,
       ha-select,
@@ -437,15 +530,19 @@ class RoomProCard extends LitElement {
       `;
     } else if (this._activePopup === 'scene') {
       const sceneEnt = this._config.entities.find(e => e.type === 'scene');
-      title = 'Scenes';
+      title = (sceneEnt && sceneEnt.name) || 'Scenes';
       content = html`
         <div class="popup-scene-list">
-          ${sceneEnt.scenes.map(s => html`
-            <div class="popup-scene-item" @click=${() => { this._handleClick(s.entity, 'scene', 'turn_on'); this._togglePopup('scene'); }}>
-              <ha-icon icon=${s.icon || 'mdi:palette'}></ha-icon>
-              <span>${s.name}</span>
-            </div>
-          `)}
+          ${(sceneEnt && sceneEnt.scenes ? sceneEnt.scenes : []).map(s => {
+            const domain = (s.entity || '').split('.')[0] || 'scene';
+            return html`
+              <div class="popup-scene-item"
+                   @click=${() => { this._handleClick(s.entity, domain, 'turn_on'); this._togglePopup('scene'); }}>
+                <ha-icon icon=${s.icon || 'mdi:palette'}></ha-icon>
+                <span>${s.name}</span>
+              </div>
+            `;
+          })}
         </div>
       `;
     }
@@ -635,12 +732,17 @@ class RoomProCard extends LitElement {
       }
 
       .popup-card {
-        width: 80%;
+        /* The card is wide but short, so the popup is wide and height-capped. */
+        width: 92%;
+        max-width: 560px;
+        max-height: calc(100% - 16px);
+        overflow-y: auto;
         background: rgba(40, 40, 40, 0.9);
         border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 20px;
-        padding: 20px;
+        border-radius: 18px;
+        padding: 14px 16px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        box-sizing: border-box;
       }
 
       .popup-header {
@@ -648,8 +750,8 @@ class RoomProCard extends LitElement {
         justify-content: space-between;
         align-items: center;
         font-weight: 700;
-        margin-bottom: 20px;
-        font-size: 1.1rem;
+        margin-bottom: 12px;
+        font-size: 1rem;
       }
       .popup-header ha-icon { cursor: pointer; opacity: 0.7; }
 
@@ -675,21 +777,40 @@ class RoomProCard extends LitElement {
         color: #f87171;
       }
 
+      /* Compact buttons laid out side by side to suit the wide/short card. */
       .popup-scene-list {
         display: flex;
-        flex-direction: column;
-        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
       }
       .popup-scene-item {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
-        background: rgba(255,255,255,0.05);
+        justify-content: center;
+        gap: 4px;
+        width: 68px;
+        min-height: 64px;
+        padding: 6px 4px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
         border-radius: 12px;
         cursor: pointer;
+        transition: background 0.15s ease, transform 0.15s ease;
       }
-      .popup-scene-item:hover { background: rgba(255,255,255,0.1); }
+      .popup-scene-item:hover { background: rgba(255,255,255,0.16); }
+      .popup-scene-item:active { transform: scale(0.95); }
+      .popup-scene-item ha-icon { --mdc-icon-size: 22px; }
+      .popup-scene-item span {
+        font-size: 0.62rem;
+        line-height: 1.1;
+        text-align: center;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
       @keyframes fadeIn {
         from { opacity: 0; }
