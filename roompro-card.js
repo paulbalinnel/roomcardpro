@@ -881,9 +881,9 @@ class RoomProCard extends LitElement {
       .subtitle {
         font-size: 0.75rem;
         opacity: 0.85;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.35;
         margin-top: 2px;
       }
 
