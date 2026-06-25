@@ -115,41 +115,58 @@ class RoomProCardEditor extends LitElement {
     const entities = this._config.entities || [];
     return html`
       <div class="form">
-        <ha-textfield
-          label="Room Name"
-          .value=${this._config.name || ''}
-          @input=${(e) => this._topChanged(e, 'name')}>
-        </ha-textfield>
+        <ha-expansion-panel outlined .expanded=${true} header="General">
+          <div class="panel-body">
+            <ha-textfield
+              label="Room Name"
+              .value=${this._config.name || ''}
+              @input=${(e) => this._topChanged(e, 'name')}>
+            </ha-textfield>
 
-        <div class="slider-row">
-          <label>Banner name font size: <strong>${this._config.header_font_size ?? 18}px</strong></label>
-          <ha-slider
-            min="12" max="42" step="1"
-            .value=${this._config.header_font_size ?? 18}
-            @change=${(e) => this._topValue('header_font_size', parseInt(e.target.value, 10))}>
-          </ha-slider>
-        </div>
+            <div class="slider-row">
+              <label>Banner name font size: <strong>${this._config.header_font_size ?? 18}px</strong></label>
+              <ha-slider
+                min="12" max="42" step="1"
+                .value=${this._config.header_font_size ?? 18}
+                @change=${(e) => this._topValue('header_font_size', parseInt(e.target.value, 10))}>
+              </ha-slider>
+            </div>
+          </div>
+        </ha-expansion-panel>
 
-        ${this._imageField('background_image', 'Background Image')}
-        ${this._imageField('thumbnail', 'Thumbnail Image')}
+        <ha-expansion-panel outlined header="Images">
+          <div class="panel-body">
+            ${this._imageField('background_image', 'Background Image')}
+            ${this._imageField('thumbnail', 'Thumbnail Image')}
+          </div>
+        </ha-expansion-panel>
 
-        <div class="section-title">Sensors (header strip)</div>
-        ${this._renderSensorsEditor()}
-        <mwc-button raised class="add-btn" @click=${this._addSensor}>
-          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Sensor
-        </mwc-button>
+        <ha-expansion-panel outlined header="Sensors (header strip)">
+          <div class="panel-body">
+            ${this._renderSensorsEditor()}
+            <mwc-button raised class="add-btn" @click=${this._addSensor}>
+              <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Sensor
+            </mwc-button>
+          </div>
+        </ha-expansion-panel>
 
-        <div class="section-title">Status / motion entities</div>
-        ${this._renderStatusEditor()}
-        <mwc-button raised class="add-btn" @click=${this._addStatus}>
-          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Status Entity
-        </mwc-button>
+        <ha-expansion-panel outlined header="Status / motion entities">
+          <div class="panel-body">
+            ${this._renderStatusEditor()}
+            <mwc-button raised class="add-btn" @click=${this._addStatus}>
+              <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Status Entity
+            </mwc-button>
+          </div>
+        </ha-expansion-panel>
 
-        <div class="section-title">Buttons</div>
-        ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
-        <mwc-button raised class="add-btn" @click=${this._addButton}>
-          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
-        </mwc-button>
+        <ha-expansion-panel outlined .expanded=${true} header="Buttons">
+          <div class="panel-body">
+            ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
+            <mwc-button raised class="add-btn" @click=${this._addButton}>
+              <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
+            </mwc-button>
+          </div>
+        </ha-expansion-panel>
       </div>
     `;
   }
@@ -262,11 +279,13 @@ class RoomProCardEditor extends LitElement {
       { value: 'power', label: 'Power (run script)' },
     ];
     return html`
-      <div class="button-editor">
-        <div class="be-header">
-          <span>Button ${i + 1}</span>
-          <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeButton(i)}></ha-icon>
-        </div>
+      <ha-expansion-panel outlined class="item-panel"
+        .header=${`Button ${i + 1}${ent.name ? ' · ' + ent.name : ''}`}>
+        <ha-icon-button slot="icons" label="Remove button"
+          @click=${(e) => { e.stopPropagation(); this._removeButton(i); }}>
+          <ha-icon icon="mdi:delete"></ha-icon>
+        </ha-icon-button>
+        <div class="panel-body">
 
         <ha-entity-picker
           .hass=${this.hass}
@@ -321,7 +340,8 @@ class RoomProCardEditor extends LitElement {
         </div>
 
         ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
-      </div>
+        </div>
+      </ha-expansion-panel>
     `;
   }
 
@@ -377,8 +397,25 @@ class RoomProCardEditor extends LitElement {
       .form {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
         padding: 16px;
+      }
+      ha-expansion-panel {
+        --expansion-panel-content-padding: 0;
+        border-radius: 8px;
+        --ha-card-border-radius: 8px;
+      }
+      ha-expansion-panel[outlined] {
+        margin-bottom: 0;
+      }
+      .panel-body {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 12px;
+      }
+      .item-panel {
+        margin-top: 4px;
       }
       .section-title {
         font-weight: 700;
