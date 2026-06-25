@@ -130,43 +130,95 @@ class RoomProCardEditor extends LitElement {
           </ha-slider>
         </div>
 
-        <div class="field-label">Background Image</div>
-        <ha-selector
-          .hass=${this.hass}
-          .selector=${{ image: {} }}
-          .value=${this._config.background_image || ''}
-          @value-changed=${(e) => this._topValue('background_image', e.detail.value)}>
-        </ha-selector>
-
-        <div class="field-label">Thumbnail Image</div>
-        <ha-selector
-          .hass=${this.hass}
-          .selector=${{ image: {} }}
-          .value=${this._config.thumbnail || ''}
-          @value-changed=${(e) => this._topValue('thumbnail', e.detail.value)}>
-        </ha-selector>
-
-        <ha-textfield
-          label="Status Entity (Motion Sensor)"
-          .value=${this._config.status_entity || ''}
-          @input=${(e) => this._topChanged(e, 'status_entity')}>
-        </ha-textfield>
-
-        <div class="section-title">Buttons</div>
-        ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
-
-        <mwc-button raised class="add-btn" @click=${this._addButton}>
-          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
-        </mwc-button>
+        ${this._imageField('background_image', 'Background Image')}
+        ${this._imageField('thumbnail', 'Thumbnail Image')}
 
         <div class="section-title">Sensors (header strip)</div>
         ${this._renderSensorsEditor()}
-
         <mwc-button raised class="add-btn" @click=${this._addSensor}>
           <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Sensor
         </mwc-button>
+
+        <div class="section-title">Status / motion entities</div>
+        ${this._renderStatusEditor()}
+        <mwc-button raised class="add-btn" @click=${this._addStatus}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Status Entity
+        </mwc-button>
+
+        <div class="section-title">Buttons</div>
+        ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
+        <mwc-button raised class="add-btn" @click=${this._addButton}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
+        </mwc-button>
       </div>
     `;
+  }
+
+  _imageField(key, label) {
+    return html`
+      <div class="field-label">${label}</div>
+      <ha-textfield
+        label="URL or /local path"
+        .value=${this._config[key] || ''}
+        @input=${(e) => this._topValue(key, e.target.value)}>
+      </ha-textfield>
+      <ha-picture-upload
+        .hass=${this.hass}
+        .value=${this._config[key] || null}
+        @change=${(e) => this._topValue(key, e.target.value)}>
+      </ha-picture-upload>
+    `;
+  }
+
+  _renderStatusEditor() {
+    const list = this._statusList();
+    return html`
+      ${list.map((eid, i) => html`
+        <div class="scene-row">
+          <div class="scene-row-header">
+            <span>Status ${i + 1}</span>
+            <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeStatus(i)}></ha-icon>
+          </div>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${eid || ''}
+            .includeDomains=${['binary_sensor', 'sensor', 'switch', 'input_boolean']}
+            label="Status / motion entity"
+            allow-custom-entity
+            @value-changed=${(e) => this._statusChanged(i, e.detail.value)}>
+          </ha-entity-picker>
+        </div>
+      `)}
+    `;
+  }
+
+  // Normalise legacy single status_entity into the status_entities array.
+  _statusList() {
+    if (Array.isArray(this._config.status_entities)) return this._config.status_entities;
+    if (this._config.status_entity) return [this._config.status_entity];
+    return [];
+  }
+
+  _writeStatus(list) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    delete cfg.status_entity;
+    if (list.length) cfg.status_entities = list;
+    else delete cfg.status_entities;
+    this._emit(cfg);
+  }
+
+  _statusChanged(index, value) {
+    const list = [...this._statusList()];
+    list[index] = value;
+    this._writeStatus(list.filter((v) => v));
+  }
+
+  _addStatus() {
+    this._writeStatus([...this._statusList(), '']);
+  }
+
+  _removeStatus(index) {
+    this._writeStatus(this._statusList().filter((_, i) => i !== index));
   }
 
   _renderSensorsEditor() {
@@ -476,7 +528,7 @@ class RoomProCard extends LitElement {
       name: "Living Room",
       background_image: "/local/living_room.jpg",
       thumbnail: "/local/living_room_thumb.jpg",
-      status_entity: "binary_sensor.living_room_motion",
+      status_entities: ["binary_sensor.living_room_motion"],
       sensors: [
         { entity: "sensor.living_room_co2", prefix: "CO2:", unit: "ppm" },
         { entity: "sensor.living_room_humidity", prefix: "Hum:", unit: "%" }
@@ -506,16 +558,15 @@ class RoomProCard extends LitElement {
 
   // Per-button inline styling from the visual editor (background, edge, glow-on).
   _buttonStyle(ent, isActive) {
-    const parts = [];
-    if (ent.background_color) parts.push(`background:${ent.background_color}`);
-    if (ent.border_color) parts.push(`border-color:${ent.border_color}`);
+    // Single source of truth for button colours so nothing in CSS overrides
+    // a user's chosen background/edge/glow.
+    const bg = ent.background_color || 'rgba(0,0,0,0.5)';
+    const edge = (isActive && ent.glow_color) ? ent.glow_color : (ent.border_color || 'rgba(255,255,255,0.15)');
+    const parts = [`background:${bg}`, `border-color:${edge}`];
     if (ent.border_radius !== undefined && ent.border_radius !== null && ent.border_radius !== '') {
       parts.push(`border-radius:${ent.border_radius}px`);
     }
-    if (isActive && ent.glow_color) {
-      parts.push(`border-color:${ent.glow_color}`);
-      parts.push(`box-shadow:0 0 15px ${ent.glow_color}`);
-    }
+    parts.push(isActive && ent.glow_color ? `box-shadow:0 0 15px ${ent.glow_color}` : 'box-shadow:none');
     if (ent.font_size) parts.push(`--btn-label-size:${ent.font_size}px`);
     return parts.join(';');
   }
@@ -527,9 +578,14 @@ class RoomProCard extends LitElement {
   render() {
     if (!this._config || !this._hass) return html``;
 
-    const { name, background_image, thumbnail, status_entity, entities, header_font_size } = this._config;
-    const statusState = status_entity ? this._hass.states[status_entity] : null;
-    const isMotion = statusState && statusState.state === 'on';
+    const { name, background_image, thumbnail, entities, header_font_size } = this._config;
+    const statusList = Array.isArray(this._config.status_entities)
+      ? this._config.status_entities
+      : (this._config.status_entity ? [this._config.status_entity] : []);
+    const isMotion = statusList.some((eid) => {
+      const s = this._hass.states[eid];
+      return s && (s.state === 'on' || s.state === 'home' || s.state === 'detected');
+    });
 
     const entityCount = entities.length;
     const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
@@ -787,19 +843,9 @@ class RoomProCard extends LitElement {
         opacity: 0.8;
       }
 
-      .btn.active {
-        background: rgba(59, 130, 246, 0.2); 
-        border-color: #3b82f6;
-        box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
-      }
-      .btn.active ha-icon { color: #60a5fa; }
-
-      .btn.power-btn {
-        background: rgba(239, 68, 68, 0.2); 
-        border-color: #ef4444;
-        box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
-      }
-      .btn.power-btn ha-icon { color: #f87171; }
+      /* Button colours (background / edge / glow) are driven entirely by the
+         per-button inline style from _buttonStyle, so there are no class-based
+         colour rules here that could override the user's choices. */
 
       .controls-grid {
         grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
