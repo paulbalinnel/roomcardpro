@@ -31,6 +31,23 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _topSet(key, value) {
+    if (!this._config) return;
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg[key] = value;
+    this._emit(cfg);
+  }
+
+  // Native text input (renders reliably across HA versions, unlike ha-textfield).
+  _text(label, value, onInput) {
+    return html`
+      <label class="tf">
+        <span>${label}</span>
+        <input type="text" .value=${value || ''} @input=${(e) => onInput(e.target.value)} />
+      </label>
+    `;
+  }
+
   _buttonChanged(index, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     cfg.entities = cfg.entities ? [...cfg.entities] : [];
@@ -117,11 +134,7 @@ class RoomProCardEditor extends LitElement {
       <div class="form">
         <ha-expansion-panel outlined .expanded=${true} header="General">
           <div class="panel-body">
-            <ha-textfield
-              label="Banner Name"
-              .value=${this._config.name || ''}
-              @input=${(e) => this._topChanged(e, 'name')}>
-            </ha-textfield>
+            ${this._text('Banner Name', this._config.name, (v) => this._topSet('name', v))}
 
             <div class="slider-row">
               <label>Banner name font size: <strong>${this._config.header_font_size ?? 18}px</strong></label>
@@ -175,11 +188,7 @@ class RoomProCardEditor extends LitElement {
     const val = this._config[key] || '';
     return html`
       <div class="field-label">${label}</div>
-      <ha-textfield
-        label="Image URL or /local path (e.g. /local/room.jpg)"
-        .value=${val}
-        @input=${(e) => this._topValue(key, e.target.value)}>
-      </ha-textfield>
+      ${this._text('Image URL or /local path (e.g. /local/room.jpg)', val, (v) => this._topValue(key, v))}
       ${val
         ? html`
             <div class="img-current">Current: <code>${val}</code></div>
@@ -202,8 +211,7 @@ class RoomProCardEditor extends LitElement {
           <ha-entity-picker
             .hass=${this.hass}
             .value=${eid || ''}
-            .includeDomains=${['binary_sensor', 'sensor', 'switch', 'input_boolean']}
-            label="Status / motion entity"
+            label="Status entity (any domain)"
             allow-custom-entity
             @value-changed=${(e) => this._statusChanged(i, e.detail.value)}>
           </ha-entity-picker>
@@ -258,16 +266,8 @@ class RoomProCardEditor extends LitElement {
             allow-custom-entity
             @value-changed=${(e) => this._sensorChanged(si, 'entity', e.detail.value)}>
           </ha-entity-picker>
-          <ha-textfield
-            label="Prefix (e.g. Temp:)"
-            .value=${s.prefix || ''}
-            @input=${(e) => this._sensorChanged(si, 'prefix', e.target.value)}>
-          </ha-textfield>
-          <ha-textfield
-            label="Unit (blank = use entity's)"
-            .value=${s.unit || ''}
-            @input=${(e) => this._sensorChanged(si, 'unit', e.target.value)}>
-          </ha-textfield>
+          ${this._text('Prefix (e.g. Temp:)', s.prefix, (v) => this._sensorChanged(si, 'prefix', v))}
+          ${this._text("Unit (blank = use entity's)", s.unit, (v) => this._sensorChanged(si, 'unit', v))}
         </div>
       `)}
     `;
@@ -277,6 +277,7 @@ class RoomProCardEditor extends LitElement {
     const actions = [
       { value: 'light', label: 'Light (toggle)' },
       { value: 'switch', label: 'Switch (toggle)' },
+      { value: 'cover', label: 'Cover / blind (open/close/stop)' },
       { value: 'audio', label: 'Audio (volume popup)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
@@ -306,11 +307,7 @@ class RoomProCardEditor extends LitElement {
           ${actions.map((a) => html`<mwc-list-item .value=${a.value}>${a.label}</mwc-list-item>`)}
         </ha-select>
 
-        <ha-textfield
-          label="Name"
-          .value=${ent.name || ''}
-          @input=${(e) => this._buttonChanged(i, 'name', e.target.value)}>
-        </ha-textfield>
+        ${this._text('Name', ent.name, (v) => this._buttonChanged(i, 'name', v))}
 
         <ha-icon-picker
           .value=${ent.icon || ''}
@@ -367,11 +364,7 @@ class RoomProCardEditor extends LitElement {
               allow-custom-entity
               @value-changed=${(e) => this._sceneChanged(btnIndex, si, 'entity', e.detail.value)}>
             </ha-entity-picker>
-            <ha-textfield
-              label="Label"
-              .value=${s.name || ''}
-              @input=${(e) => this._sceneChanged(btnIndex, si, 'name', e.target.value)}>
-            </ha-textfield>
+            ${this._text('Label', s.name, (v) => this._sceneChanged(btnIndex, si, 'name', v))}
             <ha-icon-picker
               .value=${s.icon || ''}
               label="Icon"
@@ -513,6 +506,29 @@ class RoomProCardEditor extends LitElement {
         width: 100%;
         display: block;
       }
+      .tf {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .tf > span {
+        font-size: 0.8rem;
+        color: var(--secondary-text-color);
+      }
+      .tf input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+        color: var(--primary-text-color);
+        border: 1px solid var(--divider-color, #555);
+        border-radius: 6px;
+        font-size: 0.95rem;
+      }
+      .tf input:focus {
+        outline: none;
+        border-color: var(--primary-color, #3b82f6);
+      }
       .field-label {
         font-size: 0.85rem;
         color: var(--secondary-text-color);
@@ -626,8 +642,13 @@ class RoomProCard extends LitElement {
     return parts.join(';');
   }
 
-  _togglePopup(type) {
-    this._activePopup = this._activePopup === type ? null : type;
+  _togglePopup(kind, ent) {
+    const cur = this._activePopup;
+    if (cur && cur.kind === kind && cur.ent === ent) {
+      this._activePopup = null;
+    } else {
+      this._activePopup = { kind, ent };
+    }
   }
 
   render() {
@@ -637,9 +658,10 @@ class RoomProCard extends LitElement {
     const statusList = Array.isArray(this._config.status_entities)
       ? this._config.status_entities
       : (this._config.status_entity ? [this._config.status_entity] : []);
+    const INACTIVE = ['off', 'closed', 'idle', 'standby', 'paused', 'unavailable', 'unknown', 'none', 'not_home', 'locked', 'disarmed', '0', ''];
     const isMotion = statusList.some((eid) => {
       const s = this._hass.states[eid];
-      return s && (s.state === 'on' || s.state === 'home' || s.state === 'detected');
+      return s && !INACTIVE.includes(String(s.state).toLowerCase());
     });
 
     const entityCount = entities.length;
@@ -689,10 +711,15 @@ class RoomProCard extends LitElement {
     } else if (ent.type === 'audio') {
       isActive = stateObj && (stateObj.state === 'playing' || stateObj.state === 'on');
       icon = ent.icon || 'mdi:speaker';
-      action = () => this._togglePopup('audio');
+      action = () => this._togglePopup('audio', ent);
+    } else if (ent.type === 'cover') {
+      isActive = stateObj && (stateObj.state === 'open' || stateObj.state === 'opening' ||
+        (stateObj.attributes && stateObj.attributes.current_position > 0));
+      icon = ent.icon || 'mdi:window-shutter';
+      action = () => this._togglePopup('cover', ent);
     } else if (ent.type === 'scene') {
       icon = ent.icon || 'mdi:palette';
-      action = () => this._togglePopup('scene');
+      action = () => this._togglePopup('scene', ent);
     } else if (ent.type === 'power') {
       icon = ent.icon || 'mdi:power';
       action = () => this._handleClick(ent.entity, 'script', 'turn_on');
@@ -714,39 +741,53 @@ class RoomProCard extends LitElement {
 
   _renderPopup() {
     if (!this._activePopup) return html``;
-    
-    let content = html``;
-    let title = '';
 
-    if (this._activePopup === 'audio') {
-      const audioEnt = this._config.entities.find(e => e.type === 'audio');
-      const audioState = audioEnt ? this._hass.states[audioEnt.entity] : null;
+    const { kind, ent } = this._activePopup;
+    let content = html``;
+    let title = (ent && ent.name) || '';
+
+    if (kind === 'audio') {
+      const audioState = ent ? this._hass.states[ent.entity] : null;
       const isMuted = audioState && audioState.attributes.is_volume_muted;
-      title = (audioEnt && audioEnt.name) || 'Audio Control';
+      title = (ent && ent.name) || 'Audio Control';
       content = html`
         <div class="popup-row">
-          <div class="popup-btn" @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_down')}>
+          <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'media_player', 'volume_down')}>
             <ha-icon icon="mdi:volume-minus"></ha-icon>
           </div>
-          <div class="popup-btn" @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_up')}>
+          <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'media_player', 'volume_up')}>
             <ha-icon icon="mdi:volume-plus"></ha-icon>
           </div>
           <div class="popup-btn ${isMuted ? 'active' : ''}"
-               @click=${() => this._handleClick(audioEnt.entity, 'media_player', 'volume_mute', { is_volume_muted: !isMuted })}>
+               @click=${() => this._handleClick(ent.entity, 'media_player', 'volume_mute', { is_volume_muted: !isMuted })}>
             <ha-icon icon="${isMuted ? 'mdi:volume-off' : 'mdi:volume-mute'}"></ha-icon>
           </div>
         </div>
       `;
-    } else if (this._activePopup === 'scene') {
-      const sceneEnt = this._config.entities.find(e => e.type === 'scene');
-      title = (sceneEnt && sceneEnt.name) || 'Scenes';
+    } else if (kind === 'cover') {
+      title = (ent && ent.name) || 'Cover';
+      content = html`
+        <div class="popup-row">
+          <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'cover', 'open_cover')}>
+            <ha-icon icon="mdi:arrow-up"></ha-icon>
+          </div>
+          <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'cover', 'stop_cover')}>
+            <ha-icon icon="mdi:stop"></ha-icon>
+          </div>
+          <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'cover', 'close_cover')}>
+            <ha-icon icon="mdi:arrow-down"></ha-icon>
+          </div>
+        </div>
+      `;
+    } else if (kind === 'scene') {
+      title = (ent && ent.name) || 'Scenes';
       content = html`
         <div class="popup-scene-list">
-          ${(sceneEnt && sceneEnt.scenes ? sceneEnt.scenes : []).map(s => {
+          ${(ent && ent.scenes ? ent.scenes : []).map(s => {
             const domain = (s.entity || '').split('.')[0] || 'scene';
             return html`
               <div class="popup-scene-item"
-                   @click=${() => { this._handleClick(s.entity, domain, 'turn_on'); this._togglePopup('scene'); }}>
+                   @click=${() => { this._handleClick(s.entity, domain, 'turn_on'); this._activePopup = null; }}>
                 <ha-icon icon=${s.icon || 'mdi:palette'}></ha-icon>
                 <span>${s.name}</span>
               </div>
