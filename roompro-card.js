@@ -12,17 +12,44 @@ class RoomProCardEditor extends LitElement {
     this._config = config;
   }
 
-  _valueChanged(ev, path) {
+  _topChanged(ev, key) {
     if (!this._config) return;
-    const newConfig = JSON.parse(JSON.stringify(this._config));
-    const value = ev.target.value;
-    
-    if (path === 'name' || path === 'background_image' || path === 'thumbnail' || path === 'status_entity') {
-      newConfig[path] = value;
-    }
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg[key] = ev.target.value;
+    this._emit(cfg);
+  }
 
+  _buttonChanged(index, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.entities = cfg.entities ? [...cfg.entities] : [];
+    cfg.entities[index] = { ...cfg.entities[index], [key]: value };
+    this._emit(cfg);
+  }
+
+  _addButton() {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.entities = cfg.entities ? [...cfg.entities] : [];
+    cfg.entities.push({
+      type: 'light',
+      name: 'New Button',
+      icon: 'mdi:lightbulb',
+      background_color: '#1e1e1e',
+      glow_color: '#3b82f6',
+      border_color: '#3b82f6',
+      border_radius: 16,
+    });
+    this._emit(cfg);
+  }
+
+  _removeButton(index) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.entities = (cfg.entities || []).filter((_, i) => i !== index);
+    this._emit(cfg);
+  }
+
+  _emit(cfg) {
     this.dispatchEvent(new CustomEvent("config-changed", {
-      detail: { config: newConfig },
+      detail: { config: cfg },
       bubbles: true,
       composed: true,
     }));
@@ -30,35 +57,114 @@ class RoomProCardEditor extends LitElement {
 
   render() {
     if (!this._config) return html``;
+    const entities = this._config.entities || [];
     return html`
       <div class="form">
-        <ha-textfield 
-          label="Room Name" 
-          .value=${this._config.name || ''} 
-          @input=${(e) => this._valueChanged(e, 'name')}>
-        </ha-textfield>
-        
-        <ha-textfield 
-          label="Background Image URL (e.g., /local/room.jpg)" 
-          .value=${this._config.background_image || ''} 
-          @input=${(e) => this._valueChanged(e, 'background_image')}>
+        <ha-textfield
+          label="Room Name"
+          .value=${this._config.name || ''}
+          @input=${(e) => this._topChanged(e, 'name')}>
         </ha-textfield>
 
-        <ha-textfield 
-          label="Thumbnail Image URL" 
-          .value=${this._config.thumbnail || ''} 
-          @input=${(e) => this._valueChanged(e, 'thumbnail')}>
+        <ha-textfield
+          label="Background Image URL (e.g., /local/room.jpg)"
+          .value=${this._config.background_image || ''}
+          @input=${(e) => this._topChanged(e, 'background_image')}>
         </ha-textfield>
 
-        <ha-textfield 
-          label="Status Entity (Motion Sensor)" 
-          .value=${this._config.status_entity || ''} 
-          @input=${(e) => this._valueChanged(e, 'status_entity')}>
+        <ha-textfield
+          label="Thumbnail Image URL"
+          .value=${this._config.thumbnail || ''}
+          @input=${(e) => this._topChanged(e, 'thumbnail')}>
         </ha-textfield>
-        
+
+        <ha-textfield
+          label="Status Entity (Motion Sensor)"
+          .value=${this._config.status_entity || ''}
+          @input=${(e) => this._topChanged(e, 'status_entity')}>
+        </ha-textfield>
+
+        <div class="section-title">Buttons</div>
+        ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
+
+        <mwc-button raised class="add-btn" @click=${this._addButton}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Button
+        </mwc-button>
+
         <div class="hint">
-          Note: For advanced arrays like 'sensors' and 'entities', please use YAML mode.
+          Scene buttons keep their <code>scenes:</code> list and read-only
+          <code>sensors:</code> are still edited in YAML mode. Everything else is editable here.
         </div>
+      </div>
+    `;
+  }
+
+  _renderButtonEditor(ent, i) {
+    const actions = [
+      { value: 'light', label: 'Light (toggle)' },
+      { value: 'switch', label: 'Switch (toggle)' },
+      { value: 'audio', label: 'Audio (volume popup)' },
+      { value: 'scene', label: 'Scene (picker popup)' },
+      { value: 'power', label: 'Power (run script)' },
+    ];
+    return html`
+      <div class="button-editor">
+        <div class="be-header">
+          <span>Button ${i + 1}</span>
+          <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeButton(i)}></ha-icon>
+        </div>
+
+        <ha-entity-picker
+          .hass=${this.hass}
+          .value=${ent.entity || ''}
+          label="Entity"
+          allow-custom-entity
+          @value-changed=${(e) => this._buttonChanged(i, 'entity', e.detail.value)}>
+        </ha-entity-picker>
+
+        <ha-select
+          label="Action"
+          .value=${ent.type || 'light'}
+          @selected=${(e) => this._buttonChanged(i, 'type', e.target.value)}
+          @closed=${(e) => e.stopPropagation()}>
+          ${actions.map((a) => html`<mwc-list-item .value=${a.value}>${a.label}</mwc-list-item>`)}
+        </ha-select>
+
+        <ha-textfield
+          label="Name"
+          .value=${ent.name || ''}
+          @input=${(e) => this._buttonChanged(i, 'name', e.target.value)}>
+        </ha-textfield>
+
+        <ha-icon-picker
+          .value=${ent.icon || ''}
+          label="Icon"
+          @value-changed=${(e) => this._buttonChanged(i, 'icon', e.detail.value)}>
+        </ha-icon-picker>
+
+        <div class="color-grid">
+          ${this._colorField('Background', ent.background_color, '#1e1e1e', (v) => this._buttonChanged(i, 'background_color', v))}
+          ${this._colorField('Edge color', ent.border_color, '#3b82f6', (v) => this._buttonChanged(i, 'border_color', v))}
+          ${this._colorField('Glow (on)', ent.glow_color, '#3b82f6', (v) => this._buttonChanged(i, 'glow_color', v))}
+        </div>
+
+        <div class="slider-row">
+          <label>Edge radius: <strong>${ent.border_radius ?? 16}px</strong></label>
+          <ha-slider
+            min="0" max="30" step="1"
+            .value=${ent.border_radius ?? 16}
+            @change=${(e) => this._buttonChanged(i, 'border_radius', parseInt(e.target.value, 10))}>
+          </ha-slider>
+        </div>
+      </div>
+    `;
+  }
+
+  _colorField(label, value, fallback, onChange) {
+    return html`
+      <div class="color-field">
+        <label>${label}</label>
+        <input type="color" .value=${value || fallback} @input=${(e) => onChange(e.target.value)} />
       </div>
     `;
   }
@@ -70,6 +176,70 @@ class RoomProCardEditor extends LitElement {
         flex-direction: column;
         gap: 16px;
         padding: 16px;
+      }
+      .section-title {
+        font-weight: 700;
+        font-size: 1rem;
+        margin-top: 8px;
+      }
+      .button-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--divider-color, #444);
+        background: var(--secondary-background-color, rgba(0, 0, 0, 0.05));
+      }
+      .be-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+      }
+      .be-header .del {
+        cursor: pointer;
+        color: var(--error-color, #f87171);
+      }
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .color-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .color-field label {
+        font-size: 0.75rem;
+        color: var(--secondary-text-color);
+      }
+      .color-field input[type="color"] {
+        width: 100%;
+        height: 36px;
+        border: none;
+        border-radius: 8px;
+        background: none;
+        cursor: pointer;
+        padding: 0;
+      }
+      .slider-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .slider-row label {
+        font-size: 0.85rem;
+      }
+      ha-textfield,
+      ha-select,
+      ha-entity-picker,
+      ha-icon-picker {
+        width: 100%;
+      }
+      .add-btn {
+        margin-top: 4px;
       }
       .hint {
         font-size: 0.8rem;
@@ -124,10 +294,10 @@ class RoomProCard extends LitElement {
         { entity: "sensor.living_room_humidity", prefix: "Hum:", unit: "%" }
       ],
       entities: [
-        { type: "light", entity: "light.living_room_main", name: "Main Light" },
-        { type: "audio", entity: "media_player.living_room_speaker", name: "Speaker" },
-        { type: "scene", name: "Scenes", icon: "mdi:palette", scenes: [{ entity: "scene.movie_mode", name: "Movie" }] },
-        { type: "power", name: "All Off", icon: "mdi:power", entity: "script.turn_off_living_room" }
+        { type: "light", entity: "light.living_room_main", name: "Main Light", icon: "mdi:lightbulb", background_color: "#1e1e1e", glow_color: "#facc15", border_color: "#3b82f6", border_radius: 16 },
+        { type: "audio", entity: "media_player.living_room_speaker", name: "Speaker", icon: "mdi:speaker", background_color: "#1e1e1e", glow_color: "#22d3ee", border_color: "#3b82f6", border_radius: 16 },
+        { type: "scene", name: "Scenes", icon: "mdi:palette", background_color: "#1e1e1e", glow_color: "#a855f7", border_color: "#3b82f6", border_radius: 16, scenes: [{ entity: "scene.movie_mode", name: "Movie" }] },
+        { type: "power", name: "All Off", icon: "mdi:power", entity: "script.turn_off_living_room", background_color: "#3b0d0d", glow_color: "#ef4444", border_color: "#ef4444", border_radius: 16 }
       ]
     };
   }
@@ -144,6 +314,21 @@ class RoomProCard extends LitElement {
   _handleClick(entityId, domain, action = 'toggle', data = {}) {
     if (!entityId || !this._hass) return;
     this._hass.callService(domain, action, { entity_id: entityId, ...data });
+  }
+
+  // Per-button inline styling from the visual editor (background, edge, glow-on).
+  _buttonStyle(ent, isActive) {
+    const parts = [];
+    if (ent.background_color) parts.push(`background:${ent.background_color}`);
+    if (ent.border_color) parts.push(`border-color:${ent.border_color}`);
+    if (ent.border_radius !== undefined && ent.border_radius !== null && ent.border_radius !== '') {
+      parts.push(`border-radius:${ent.border_radius}px`);
+    }
+    if (isActive && ent.glow_color) {
+      parts.push(`border-color:${ent.glow_color}`);
+      parts.push(`box-shadow:0 0 15px ${ent.glow_color}`);
+    }
+    return parts.join(';');
   }
 
   _togglePopup(type) {
@@ -200,17 +385,17 @@ class RoomProCard extends LitElement {
       icon = ent.icon || (isActive ? 'mdi:toggle-switch' : 'mdi:toggle-switch-off');
       action = () => this._handleClick(ent.entity, ent.type);
     } else if (ent.type === 'audio') {
-      isActive = stateObj && stateObj.state === 'playing';
-      icon = 'mdi:speaker';
+      isActive = stateObj && (stateObj.state === 'playing' || stateObj.state === 'on');
+      icon = ent.icon || 'mdi:speaker';
       action = () => this._togglePopup('audio');
     } else if (ent.type === 'scene') {
-      icon = 'mdi:palette';
+      icon = ent.icon || 'mdi:palette';
       action = () => this._togglePopup('scene');
     } else if (ent.type === 'power') {
-      icon = 'mdi:power';
+      icon = ent.icon || 'mdi:power';
       action = () => this._handleClick(ent.entity, 'script', 'turn_on');
       return html`
-        <div class="btn power-btn" @click=${action}>
+        <div class="btn power-btn" style=${this._buttonStyle(ent, false)} @click=${action}>
           <ha-icon icon=${icon}></ha-icon>
           <span class="btn-label">${label}</span>
         </div>
@@ -218,7 +403,7 @@ class RoomProCard extends LitElement {
     }
 
     return html`
-      <div class="btn ${isActive ? 'active' : ''} ${ent.type}" @click=${action}>
+      <div class="btn ${isActive ? 'active' : ''} ${ent.type}" style=${this._buttonStyle(ent, isActive)} @click=${action}>
         <ha-icon icon=${icon}></ha-icon>
         <span class="btn-label">${label}</span>
       </div>
