@@ -144,6 +144,15 @@ class RoomProCardEditor extends LitElement {
                 @change=${(e) => this._topValue('header_font_size', parseInt(e.target.value, 10))}>
               </ha-slider>
             </div>
+
+            <div class="slider-row">
+              <label>Sensor text font size: <strong>${this._config.sensor_font_size ?? 15}px</strong></label>
+              <ha-slider
+                min="10" max="28" step="1"
+                .value=${this._config.sensor_font_size ?? 15}
+                @change=${(e) => this._topValue('sensor_font_size', parseInt(e.target.value, 10))}>
+              </ha-slider>
+            </div>
           </div>
         </ha-expansion-panel>
 
@@ -710,7 +719,10 @@ class RoomProCard extends LitElement {
     const entityCount = entities.length;
     const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
 
-    const containerStyle = header_font_size ? `--room-title-font-size:${header_font_size}px` : '';
+    const styleVars = [];
+    if (header_font_size) styleVars.push(`--room-title-font-size:${header_font_size}px`);
+    if (this._config.sensor_font_size) styleVars.push(`--sensor-font-size:${this._config.sensor_font_size}px`);
+    const containerStyle = styleVars.join(';');
 
     return html`
       <div class="card-container" style=${containerStyle}>
@@ -931,6 +943,13 @@ class RoomProCard extends LitElement {
       .header-text {
         flex: 1;
         min-width: 0;
+        /* Banner name and sensor data sit on one row, sensors a fixed
+           distance to the right of the name (regardless of name font size). */
+        display: flex;
+        align-items: baseline;
+        column-gap: 18px;
+        row-gap: 2px;
+        flex-wrap: wrap;
       }
 
       .title {
@@ -938,15 +957,17 @@ class RoomProCard extends LitElement {
         font-weight: 700;
         letter-spacing: -0.2px;
         text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        flex-shrink: 0;
       }
 
       .subtitle {
-        font-size: 0.75rem;
-        opacity: 0.85;
+        font-size: var(--sensor-font-size, 0.95rem);
+        font-weight: 600;
+        opacity: 0.9;
         white-space: normal;
         overflow-wrap: anywhere;
-        line-height: 1.35;
-        margin-top: 2px;
+        line-height: 1.3;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.5);
       }
 
       .status-icons {
