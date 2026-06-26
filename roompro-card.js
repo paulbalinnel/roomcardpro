@@ -299,13 +299,16 @@ class RoomProCardEditor extends LitElement {
           @value-changed=${(e) => this._buttonChanged(i, 'entity', e.detail.value)}>
         </ha-entity-picker>
 
-        <ha-select
-          label="Action"
-          .value=${ent.type || 'light'}
-          @selected=${(e) => this._buttonChanged(i, 'type', e.target.value)}
-          @closed=${(e) => e.stopPropagation()}>
-          ${actions.map((a) => html`<mwc-list-item .value=${a.value}>${a.label}</mwc-list-item>`)}
-        </ha-select>
+        <label class="tf">
+          <span>Action</span>
+          <select
+            .value=${ent.type || 'light'}
+            @change=${(e) => this._buttonChanged(i, 'type', e.target.value)}>
+            ${actions.map((a) => html`
+              <option value=${a.value} ?selected=${(ent.type || 'light') === a.value}>${a.label}</option>
+            `)}
+          </select>
+        </label>
 
         ${this._text('Name', ent.name, (v) => this._buttonChanged(i, 'name', v))}
 
@@ -515,7 +518,8 @@ class RoomProCardEditor extends LitElement {
         font-size: 0.8rem;
         color: var(--secondary-text-color);
       }
-      .tf input {
+      .tf input,
+      .tf select {
         width: 100%;
         box-sizing: border-box;
         padding: 10px 12px;
@@ -525,7 +529,12 @@ class RoomProCardEditor extends LitElement {
         border-radius: 6px;
         font-size: 0.95rem;
       }
-      .tf input:focus {
+      .tf select {
+        appearance: auto;
+        cursor: pointer;
+      }
+      .tf input:focus,
+      .tf select:focus {
         outline: none;
         border-color: var(--primary-color, #3b82f6);
       }
