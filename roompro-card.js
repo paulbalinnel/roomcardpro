@@ -151,6 +151,13 @@ class RoomProCardEditor extends LitElement {
           <div class="panel-body">
             ${this._imageField('background_image', 'Background Image')}
             ${this._imageField('thumbnail', 'Thumbnail Image')}
+
+            <div class="field-label">Header icon (replaces the thumbnail image when set)</div>
+            <ha-icon-picker
+              .value=${this._config.header_icon || ''}
+              label="Header icon"
+              @value-changed=${(e) => this._topValue('header_icon', e.detail.value)}>
+            </ha-icon-picker>
           </div>
         </ha-expansion-panel>
 
@@ -698,7 +705,7 @@ class RoomProCard extends LitElement {
   render() {
     if (!this._config || !this._hass) return html``;
 
-    const { name, background_image, thumbnail, entities, header_font_size } = this._config;
+    const { name, background_image, thumbnail, header_icon, entities, header_font_size } = this._config;
 
     const entityCount = entities.length;
     const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
@@ -710,7 +717,9 @@ class RoomProCard extends LitElement {
         <div class="bg-image" style="background-image: url('${background_image}');"></div>
         
         <div class="header">
-          <div class="thumb" style="background-image: url('${thumbnail || background_image}');"></div>
+          ${header_icon
+            ? html`<div class="thumb thumb-icon"><ha-icon icon=${header_icon}></ha-icon></div>`
+            : html`<div class="thumb" style="background-image: url('${thumbnail || background_image}');"></div>`}
           <div class="header-text">
             <div class="title">${name}</div>
             <div class="subtitle">${this._getSensorString()}</div>
@@ -907,6 +916,16 @@ class RoomProCard extends LitElement {
         background-position: center;
         flex-shrink: 0;
         border: 1px solid rgba(255,255,255,0.2);
+      }
+      .thumb-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .thumb-icon ha-icon {
+        --mdc-icon-size: 26px;
+        color: #fff;
       }
 
       .header-text {
