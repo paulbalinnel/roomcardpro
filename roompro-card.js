@@ -278,7 +278,7 @@ class RoomProCardEditor extends LitElement {
       { value: 'light', label: 'Light (toggle)' },
       { value: 'switch', label: 'Switch (toggle)' },
       { value: 'cover', label: 'Cover / blind (open/close/stop)' },
-      { value: 'audio', label: 'Audio (volume popup)' },
+      { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
     ];
@@ -783,11 +783,18 @@ class RoomProCard extends LitElement {
     let title = (ent && ent.name) || '';
 
     if (kind === 'audio') {
-      const audioState = ent ? this._hass.states[ent.entity] : null;
-      const isMuted = audioState && audioState.attributes.is_volume_muted;
-      title = (ent && ent.name) || 'Audio Control';
+      const st = ent ? this._hass.states[ent.entity] : null;
+      const isMuted = st && st.attributes.is_volume_muted;
+      const isOn = st && !['off', 'standby', 'unavailable', 'unknown'].includes(String(st.state).toLowerCase());
+      const vol = (st && st.attributes.volume_level != null) ? Math.round(st.attributes.volume_level * 100) + '%' : '';
+      title = (ent && ent.name) || 'Media Control';
       content = html`
+        <div class="popup-status">${st ? st.state : 'unavailable'}${vol ? ' · ' + vol : ''}</div>
         <div class="popup-row">
+          <div class="popup-btn ${isOn ? 'on' : ''}"
+               @click=${() => this._handleClick(ent.entity, 'media_player', 'toggle')}>
+            <ha-icon icon="mdi:power"></ha-icon>
+          </div>
           <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'media_player', 'volume_down')}>
             <ha-icon icon="mdi:volume-minus"></ha-icon>
           </div>
@@ -1037,9 +1044,18 @@ class RoomProCard extends LitElement {
       }
       .popup-header ha-icon { cursor: pointer; opacity: 0.7; }
 
+      .popup-status {
+        text-align: center;
+        font-size: 0.8rem;
+        opacity: 0.8;
+        margin-bottom: 14px;
+        text-transform: capitalize;
+      }
+
       .popup-row {
         display: flex;
-        justify-content: space-around;
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 10px;
       }
 
@@ -1057,6 +1073,10 @@ class RoomProCard extends LitElement {
       .popup-btn.active {
         background: rgba(239, 68, 68, 0.25);
         color: #f87171;
+      }
+      .popup-btn.on {
+        background: rgba(74, 222, 128, 0.22);
+        color: #4ade80;
       }
 
       /* Compact buttons laid out side by side to suit the wide/short card. */
