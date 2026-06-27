@@ -391,8 +391,8 @@ class RoomProCardEditor extends LitElement {
         <div class="color-grid">
           ${this._colorField('Background', ent.background_color, '#1e1e1e', (v) => this._buttonChanged(i, 'background_color', v))}
           ${this._colorField('Edge color', ent.border_color, '#808080', (v) => this._buttonChanged(i, 'border_color', v))}
-          ${this._colorField('Glow when ON', ent.glow_color, '#22c55e', (v) => this._buttonChanged(i, 'glow_color', v))}
-          ${this._colorField('Glow when OFF', ent.glow_color_off, '#ef4444', (v) => this._buttonChanged(i, 'glow_color_off', v))}
+          ${this._glowField('Glow when ON', ent.glow_color, '#22c55e', (v) => this._buttonChanged(i, 'glow_color', v))}
+          ${this._glowField('Glow when OFF', ent.glow_color_off, '#ef4444', (v) => this._buttonChanged(i, 'glow_color_off', v))}
         </div>
         <div class="hint">
           Leave a glow colour matching the edge colour to effectively disable
@@ -513,6 +513,23 @@ class RoomProCardEditor extends LitElement {
     `;
   }
 
+  // Like a colour field, but with a "No glow" checkbox (empty value = no glow).
+  _glowField(label, value, fallback, onChange) {
+    const none = !value;
+    return html`
+      <div class="color-field">
+        <label>${label}</label>
+        <input type="color" .value=${value || fallback} ?disabled=${none}
+          @input=${(e) => onChange(e.target.value)} />
+        <label class="noglow">
+          <input type="checkbox" .checked=${none}
+            @change=${(e) => onChange(e.target.checked ? '' : fallback)} />
+          No glow
+        </label>
+      </div>
+    `;
+  }
+
   static get styles() {
     return css`
       .form {
@@ -584,6 +601,23 @@ class RoomProCardEditor extends LitElement {
         background: none;
         cursor: pointer;
         padding: 0;
+      }
+      .color-field input[type="color"]:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .noglow {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        color: var(--secondary-text-color);
+        cursor: pointer;
+      }
+      .noglow input {
+        width: auto;
+        margin: 0;
+        cursor: pointer;
       }
       .slider-row {
         display: flex;
