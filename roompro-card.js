@@ -391,7 +391,12 @@ class RoomProCardEditor extends LitElement {
         <div class="color-grid">
           ${this._colorField('Background', ent.background_color, '#1e1e1e', (v) => this._buttonChanged(i, 'background_color', v))}
           ${this._colorField('Edge color', ent.border_color, '#808080', (v) => this._buttonChanged(i, 'border_color', v))}
-          ${this._colorField('Glow (on)', ent.glow_color, '#3b82f6', (v) => this._buttonChanged(i, 'glow_color', v))}
+          ${this._colorField('Glow when ON', ent.glow_color, '#22c55e', (v) => this._buttonChanged(i, 'glow_color', v))}
+          ${this._colorField('Glow when OFF', ent.glow_color_off, '#ef4444', (v) => this._buttonChanged(i, 'glow_color_off', v))}
+        </div>
+        <div class="hint">
+          Leave a glow colour matching the edge colour to effectively disable
+          that state's glow. Glow reflects the entity's on/off state.
         </div>
 
         <div class="slider-row">
@@ -559,7 +564,7 @@ class RoomProCardEditor extends LitElement {
       }
       .color-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 12px;
       }
       .color-field {
@@ -799,17 +804,19 @@ class RoomProCard extends LitElement {
     return obj;
   }
 
-  // Per-button inline styling from the visual editor (background, edge, glow-on).
+  // Per-button inline styling from the visual editor (background, edge, glow).
   _buttonStyle(ent, isActive) {
     // Single source of truth for button colours so nothing in CSS overrides
     // a user's chosen background/edge/glow.
     const bg = ent.background_color || 'rgba(0,0,0,0.5)';
-    const edge = (isActive && ent.glow_color) ? ent.glow_color : (ent.border_color || '#808080');
+    // Two-state glow: glow_color when active/on, glow_color_off when inactive.
+    const glow = isActive ? ent.glow_color : ent.glow_color_off;
+    const edge = glow || ent.border_color || '#808080';
     const parts = [`background:${bg}`, `border-color:${edge}`];
     if (ent.border_radius !== undefined && ent.border_radius !== null && ent.border_radius !== '') {
       parts.push(`border-radius:${ent.border_radius}px`);
     }
-    parts.push(isActive && ent.glow_color ? `box-shadow:0 0 15px ${ent.glow_color}` : 'box-shadow:none');
+    parts.push(glow ? `box-shadow:0 0 15px ${glow}` : 'box-shadow:none');
     if (ent.font_size) parts.push(`--btn-label-size:${ent.font_size}px`);
     return parts.join(';');
   }
