@@ -99,6 +99,29 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _optionChanged(btnIndex, optIndex, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.options = btn.options ? [...btn.options] : [];
+    btn.options[optIndex] = { ...btn.options[optIndex], [key]: value };
+    this._emit(cfg);
+  }
+
+  _addOption(btnIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.options = btn.options ? [...btn.options] : [];
+    btn.options.push({ option: '', name: '', icon: '' });
+    this._emit(cfg);
+  }
+
+  _removeOption(btnIndex, optIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.options = (btn.options || []).filter((_, i) => i !== optIndex);
+    this._emit(cfg);
+  }
+
   _sensorChanged(index, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     cfg.sensors = cfg.sensors ? [...cfg.sensors] : [];
@@ -294,6 +317,7 @@ class RoomProCardEditor extends LitElement {
       { value: 'light', label: 'Light (toggle)' },
       { value: 'switch', label: 'Switch (toggle)' },
       { value: 'cover', label: 'Cover / blind (open/close/stop)' },
+      { value: 'select', label: 'Input select / select (options popup)' },
       { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
@@ -359,8 +383,38 @@ class RoomProCardEditor extends LitElement {
         </div>
 
         ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
+        ${ent.type === 'select' ? this._renderOptionsEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
+    `;
+  }
+
+  _renderOptionsEditor(ent, btnIndex) {
+    const options = ent.options || [];
+    return html`
+      <div class="scenes-editor">
+        <div class="be-subtitle">
+          Options (leave empty to auto-use the entity's own options)
+        </div>
+        ${options.map((o, oi) => html`
+          <div class="scene-row">
+            <div class="scene-row-header">
+              <span>Option ${oi + 1}</span>
+              <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeOption(btnIndex, oi)}></ha-icon>
+            </div>
+            ${this._text('Option value (must match the helper)', o.option, (v) => this._optionChanged(btnIndex, oi, 'option', v))}
+            ${this._text('Label (blank = use value)', o.name, (v) => this._optionChanged(btnIndex, oi, 'name', v))}
+            <ha-icon-picker
+              .value=${o.icon || ''}
+              label="Icon"
+              @value-changed=${(e) => this._optionChanged(btnIndex, oi, 'icon', e.detail.value)}>
+            </ha-icon-picker>
+          </div>
+        `)}
+        <mwc-button outlined class="add-scene" @click=${() => this._addOption(btnIndex)}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Option
+        </mwc-button>
+      </div>
     `;
   }
 
@@ -774,6 +828,9 @@ class RoomProCard extends LitElement {
         (stateObj.attributes && stateObj.attributes.current_position > 0));
       icon = ent.icon || 'mdi:window-shutter';
       action = () => this._togglePopup('cover', ent);
+    } else if (ent.type === 'select') {
+      icon = ent.icon || 'mdi:format-list-bulleted';
+      action = () => this._togglePopup('select', ent);
     } else if (ent.type === 'scene') {
       icon = ent.icon || 'mdi:palette';
       action = () => this._togglePopup('scene', ent);
@@ -841,6 +898,30 @@ class RoomProCard extends LitElement {
           <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'cover', 'close_cover')}>
             <ha-icon icon="mdi:arrow-down"></ha-icon>
           </div>
+        </div>
+      `;
+    } else if (kind === 'select') {
+      const st = ent ? this._hass.states[ent.entity] : null;
+      const current = st ? st.state : null;
+      const domain = (ent.entity || '').split('.')[0] || 'input_select';
+      // Use the configured options if any, else the entity's own options.
+      const opts = (ent.options && ent.options.length)
+        ? ent.options
+        : (((st && st.attributes && st.attributes.options) || []).map(o => ({ option: o })));
+      title = (ent && ent.name) || 'Select';
+      content = html`
+        <div class="popup-scene-list">
+          ${opts.map(o => {
+            const val = o.option;
+            const lbl = o.name || o.option;
+            return html`
+              <div class="popup-scene-item ${current === val ? 'current' : ''}"
+                   @click=${() => { this._handleClick(ent.entity, domain, 'select_option', { option: val }); this._activePopup = null; }}>
+                ${o.icon ? html`<ha-icon icon=${o.icon}></ha-icon>` : ''}
+                <span>${lbl}</span>
+              </div>
+            `;
+          })}
         </div>
       `;
     } else if (kind === 'scene') {
@@ -1143,6 +1224,11 @@ class RoomProCard extends LitElement {
       }
       .popup-scene-item:hover { background: rgba(255,255,255,0.16); }
       .popup-scene-item:active { transform: scale(0.95); }
+      .popup-scene-item.current {
+        background: rgba(74, 222, 128, 0.22);
+        border-color: #4ade80;
+        color: #4ade80;
+      }
       .popup-scene-item ha-icon { --mdc-icon-size: 22px; }
       .popup-scene-item span {
         font-size: 0.62rem;
