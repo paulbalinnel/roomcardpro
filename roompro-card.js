@@ -176,6 +176,15 @@ class RoomProCardEditor extends LitElement {
                 @change=${(e) => this._topValue('sensor_font_size', parseInt(e.target.value, 10))}>
               </ha-slider>
             </div>
+
+            <div class="slider-row">
+              <label>Popup option font size: <strong>${this._config.popup_font_size ?? 12}px</strong></label>
+              <ha-slider
+                min="10" max="26" step="1"
+                .value=${this._config.popup_font_size ?? 12}
+                @change=${(e) => this._topValue('popup_font_size', parseInt(e.target.value, 10))}>
+              </ha-slider>
+            </div>
           </div>
         </ha-expansion-panel>
 
@@ -300,8 +309,7 @@ class RoomProCardEditor extends LitElement {
           <ha-entity-picker
             .hass=${this.hass}
             .value=${s.entity || ''}
-            .includeDomains=${['sensor', 'binary_sensor']}
-            label="Sensor"
+            label="Entity (any domain — sensor, input_select, scene tracker, …)"
             allow-custom-entity
             @value-changed=${(e) => this._sensorChanged(si, 'entity', e.detail.value)}>
           </ha-entity-picker>
@@ -776,6 +784,7 @@ class RoomProCard extends LitElement {
     const styleVars = [];
     if (header_font_size) styleVars.push(`--room-title-font-size:${header_font_size}px`);
     if (this._config.sensor_font_size) styleVars.push(`--sensor-font-size:${this._config.sensor_font_size}px`);
+    if (this._config.popup_font_size) styleVars.push(`--popup-font-size:${this._config.popup_font_size}px`);
     const containerStyle = styleVars.join(';');
 
     return html`
@@ -1213,9 +1222,10 @@ class RoomProCard extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 4px;
-        width: 68px;
+        min-width: 68px;
+        max-width: 150px;
         min-height: 64px;
-        padding: 6px 4px;
+        padding: 8px 10px;
         background: rgba(255,255,255,0.08);
         border: 1px solid rgba(255,255,255,0.12);
         border-radius: 12px;
@@ -1231,13 +1241,11 @@ class RoomProCard extends LitElement {
       }
       .popup-scene-item ha-icon { --mdc-icon-size: 22px; }
       .popup-scene-item span {
-        font-size: 0.62rem;
-        line-height: 1.1;
+        font-size: var(--popup-font-size, 0.7rem);
+        line-height: 1.15;
         text-align: center;
         max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
       }
 
       @keyframes fadeIn {
