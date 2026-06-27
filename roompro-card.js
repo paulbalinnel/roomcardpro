@@ -324,7 +324,9 @@ class RoomProCardEditor extends LitElement {
     const actions = [
       { value: 'light', label: 'Light (toggle)' },
       { value: 'switch', label: 'Switch (toggle)' },
+      { value: 'toggle', label: 'Toggle on/off (valve, irrigation, any on/off)' },
       { value: 'cover', label: 'Cover / blind (open/close/stop)' },
+      { value: 'lock', label: 'Lock / door (lock/unlock popup)' },
       { value: 'select', label: 'Input select / select (options popup)' },
       { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
@@ -832,11 +834,19 @@ class RoomProCard extends LitElement {
       isActive = stateObj && (stateObj.state === 'playing' || stateObj.state === 'on');
       icon = ent.icon || 'mdi:speaker';
       action = () => this._togglePopup('audio', ent);
+    } else if (ent.type === 'toggle') {
+      isActive = stateObj && ['on', 'open', 'active', 'running', 'cleaning', 'playing', 'home', 'heat', 'cool'].includes(String(stateObj.state).toLowerCase());
+      icon = ent.icon || (isActive ? 'mdi:toggle-switch' : 'mdi:toggle-switch-off');
+      action = () => this._handleClick(ent.entity, 'homeassistant', 'toggle');
     } else if (ent.type === 'cover') {
       isActive = stateObj && (stateObj.state === 'open' || stateObj.state === 'opening' ||
         (stateObj.attributes && stateObj.attributes.current_position > 0));
       icon = ent.icon || 'mdi:window-shutter';
       action = () => this._togglePopup('cover', ent);
+    } else if (ent.type === 'lock') {
+      isActive = stateObj && stateObj.state === 'unlocked';
+      icon = ent.icon || (isActive ? 'mdi:lock-open-variant' : 'mdi:lock');
+      action = () => this._togglePopup('lock', ent);
     } else if (ent.type === 'select') {
       icon = ent.icon || 'mdi:format-list-bulleted';
       action = () => this._togglePopup('select', ent);
@@ -906,6 +916,23 @@ class RoomProCard extends LitElement {
           </div>
           <div class="popup-btn" @click=${() => this._handleClick(ent.entity, 'cover', 'close_cover')}>
             <ha-icon icon="mdi:arrow-down"></ha-icon>
+          </div>
+        </div>
+      `;
+    } else if (kind === 'lock') {
+      const st = ent ? this._hass.states[ent.entity] : null;
+      const state = st ? String(st.state).toLowerCase() : '';
+      title = (ent && ent.name) || 'Lock';
+      content = html`
+        <div class="popup-status">${st ? st.state : 'unavailable'}</div>
+        <div class="popup-row">
+          <div class="popup-btn ${state === 'locked' ? 'on' : ''}"
+               @click=${() => this._handleClick(ent.entity, 'lock', 'lock')}>
+            <ha-icon icon="mdi:lock"></ha-icon>
+          </div>
+          <div class="popup-btn ${state === 'unlocked' ? 'active' : ''}"
+               @click=${() => this._handleClick(ent.entity, 'lock', 'unlock')}>
+            <ha-icon icon="mdi:lock-open-variant"></ha-icon>
           </div>
         </div>
       `;
