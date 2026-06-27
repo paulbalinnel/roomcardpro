@@ -51,7 +51,18 @@ class RoomProCardEditor extends LitElement {
   _buttonChanged(index, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     cfg.entities = cfg.entities ? [...cfg.entities] : [];
-    cfg.entities[index] = { ...cfg.entities[index], [key]: value };
+    const updated = { ...cfg.entities[index], [key]: value };
+    // When the action type changes, drop config that belonged to other types
+    // so a button can't carry e.g. a leftover scenes list or service call.
+    if (key === 'type') {
+      if (value !== 'scene') delete updated.scenes;
+      if (value !== 'select') delete updated.options;
+      if (value !== 'custom') {
+        delete updated.service;
+        delete updated.service_data;
+      }
+    }
+    cfg.entities[index] = updated;
     this._emit(cfg);
   }
 
@@ -401,23 +412,26 @@ class RoomProCardEditor extends LitElement {
   }
 
   _renderCustomEditor(ent, btnIndex) {
+    const svc = ent.service || '';
+    const badService = svc.length > 0 && svc.indexOf('.') < 1;
     return html`
       <div class="scenes-editor">
         <div class="be-subtitle">Custom service call (runs on tap)</div>
-        ${this._text('Service (e.g. switch.toggle, valve.open_valve, script.run)', ent.service, (v) => this._buttonChanged(btnIndex, 'service', v))}
+        <div class="hint">
+          Set the <strong>Entity</strong> field above to the thing you want to
+          control — it is sent as <code>entity_id</code> and drives the on/off
+          colour. Then give a full <code>domain.service</code> below.
+        </div>
+        ${this._text('Service — must be domain.service (e.g. switch.toggle, irrigation_unlimited.toggle)', ent.service, (v) => this._buttonChanged(btnIndex, 'service', v))}
+        ${badService ? html`<div class="warn">⚠ "${svc}" is missing the domain. Use something like <code>switch.toggle</code>.</div>` : ''}
         <label class="tf">
-          <span>Service data (YAML or JSON — optional)</span>
+          <span>Extra service data (YAML or JSON — optional; leave blank to just target the entity)</span>
           <textarea
-            rows="4"
+            rows="3"
             placeholder="brightness: 200&#10;color_name: red"
             .value=${ent.service_data || ''}
             @input=${(e) => this._buttonChanged(btnIndex, 'service_data', e.target.value)}></textarea>
         </label>
-        <div class="hint">
-          The button's Entity above is sent as <code>entity_id</code> automatically
-          (unless you set <code>entity_id</code>/<code>target</code> in the data).
-          Colour/glow on the card reflects that entity's on/off state.
-        </div>
       </div>
     `;
   }
@@ -674,6 +688,10 @@ class RoomProCardEditor extends LitElement {
         font-size: 0.8rem;
         color: var(--secondary-text-color);
         margin-top: 8px;
+      }
+      .warn {
+        font-size: 0.8rem;
+        color: var(--error-color, #f87171);
       }
     `;
   }
