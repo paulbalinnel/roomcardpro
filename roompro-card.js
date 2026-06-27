@@ -324,10 +324,10 @@ class RoomProCardEditor extends LitElement {
     const actions = [
       { value: 'light', label: 'Light (toggle)' },
       { value: 'switch', label: 'Switch (toggle)' },
-      { value: 'toggle', label: 'Toggle on/off (valve, irrigation, any on/off)' },
       { value: 'cover', label: 'Cover / blind (open/close/stop)' },
       { value: 'lock', label: 'Lock / door (lock/unlock popup)' },
       { value: 'select', label: 'Input select / select (options popup)' },
+      { value: 'custom', label: 'Custom service call (YAML / advanced)' },
       { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
@@ -394,8 +394,31 @@ class RoomProCardEditor extends LitElement {
 
         ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
         ${ent.type === 'select' ? this._renderOptionsEditor(ent, i) : ''}
+        ${ent.type === 'custom' ? this._renderCustomEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
+    `;
+  }
+
+  _renderCustomEditor(ent, btnIndex) {
+    return html`
+      <div class="scenes-editor">
+        <div class="be-subtitle">Custom service call (runs on tap)</div>
+        ${this._text('Service (e.g. switch.toggle, valve.open_valve, script.run)', ent.service, (v) => this._buttonChanged(btnIndex, 'service', v))}
+        <label class="tf">
+          <span>Service data (YAML or JSON — optional)</span>
+          <textarea
+            rows="4"
+            placeholder="brightness: 200&#10;color_name: red"
+            .value=${ent.service_data || ''}
+            @input=${(e) => this._buttonChanged(btnIndex, 'service_data', e.target.value)}></textarea>
+        </label>
+        <div class="hint">
+          The button's Entity above is sent as <code>entity_id</code> automatically
+          (unless you set <code>entity_id</code>/<code>target</code> in the data).
+          Colour/glow on the card reflects that entity's on/off state.
+        </div>
+      </div>
     `;
   }
 
@@ -599,7 +622,8 @@ class RoomProCardEditor extends LitElement {
         color: var(--secondary-text-color);
       }
       .tf input,
-      .tf select {
+      .tf select,
+      .tf textarea {
         width: 100%;
         box-sizing: border-box;
         padding: 10px 12px;
@@ -609,12 +633,17 @@ class RoomProCardEditor extends LitElement {
         border-radius: 6px;
         font-size: 0.95rem;
       }
+      .tf textarea {
+        font-family: var(--code-font-family, monospace);
+        resize: vertical;
+      }
       .tf select {
         appearance: auto;
         cursor: pointer;
       }
       .tf input:focus,
-      .tf select:focus {
+      .tf select:focus,
+      .tf textarea:focus {
         outline: none;
         border-color: var(--primary-color, #3b82f6);
       }
@@ -714,6 +743,42 @@ class RoomProCard extends LitElement {
   _handleClick(entityId, domain, action = 'toggle', data = {}) {
     if (!entityId || !this._hass) return;
     this._hass.callService(domain, action, { entity_id: entityId, ...data });
+  }
+
+  // Custom button: call any service with optional YAML/JSON data.
+  _runCustom(ent) {
+    if (!ent.service || !this._hass) return;
+    const dot = ent.service.indexOf('.');
+    if (dot < 1) return;
+    const domain = ent.service.slice(0, dot);
+    const service = ent.service.slice(dot + 1);
+    const data = this._parseData(ent.service_data);
+    const payload = { ...data };
+    if (ent.entity && payload.entity_id === undefined && payload.target === undefined) {
+      payload.entity_id = ent.entity;
+    }
+    this._hass.callService(domain, service, payload);
+  }
+
+  // Parse JSON, or a simple flat "key: value" YAML, into an object.
+  _parseData(text) {
+    const t = (text || '').trim();
+    if (!t) return {};
+    try { return JSON.parse(t); } catch (e) { /* fall through to YAML */ }
+    const obj = {};
+    t.split('\n').forEach((line) => {
+      const idx = line.indexOf(':');
+      if (idx === -1) return;
+      const k = line.slice(0, idx).trim();
+      let v = line.slice(idx + 1).trim();
+      if (!k) return;
+      if (v === 'true') v = true;
+      else if (v === 'false') v = false;
+      else if (v !== '' && !isNaN(Number(v))) v = Number(v);
+      else v = v.replace(/^["']|["']$/g, '');
+      obj[k] = v;
+    });
+    return obj;
   }
 
   // Per-button inline styling from the visual editor (background, edge, glow-on).
@@ -834,10 +899,10 @@ class RoomProCard extends LitElement {
       isActive = stateObj && (stateObj.state === 'playing' || stateObj.state === 'on');
       icon = ent.icon || 'mdi:speaker';
       action = () => this._togglePopup('audio', ent);
-    } else if (ent.type === 'toggle') {
-      isActive = stateObj && ['on', 'open', 'active', 'running', 'cleaning', 'playing', 'home', 'heat', 'cool'].includes(String(stateObj.state).toLowerCase());
-      icon = ent.icon || (isActive ? 'mdi:toggle-switch' : 'mdi:toggle-switch-off');
-      action = () => this._handleClick(ent.entity, 'homeassistant', 'toggle');
+    } else if (ent.type === 'custom') {
+      isActive = stateObj && ['on', 'open', 'active', 'running', 'cleaning', 'playing', 'home', 'heat', 'cool', 'unlocked'].includes(String(stateObj.state).toLowerCase());
+      icon = ent.icon || 'mdi:gesture-tap-button';
+      action = () => this._runCustom(ent);
     } else if (ent.type === 'cover') {
       isActive = stateObj && (stateObj.state === 'open' || stateObj.state === 'opening' ||
         (stateObj.attributes && stateObj.attributes.current_position > 0));
