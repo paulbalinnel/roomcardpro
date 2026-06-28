@@ -79,6 +79,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `popup_font_size` | Popup option/label font size (px) |
 | `status_entities` | List of entity ids — header status icons |
 | `sensors` | List of `{ entity, prefix, unit }` for the sensor strip |
+| `sub_buttons` | Optional small pill buttons shown in a thin row above the main buttons (sub-switches / info chips) |
 | `entities` | List of buttons (see below) |
 
 ### Button options

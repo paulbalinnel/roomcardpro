@@ -87,6 +87,31 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _subChanged(index, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sub_buttons = cfg.sub_buttons ? [...cfg.sub_buttons] : [];
+    const updated = { ...cfg.sub_buttons[index], [key]: value };
+    if (key === 'type' && value !== 'custom') {
+      delete updated.service;
+      delete updated.service_data;
+    }
+    cfg.sub_buttons[index] = updated;
+    this._emit(cfg);
+  }
+
+  _addSub() {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sub_buttons = cfg.sub_buttons ? [...cfg.sub_buttons] : [];
+    cfg.sub_buttons.push({ type: 'switch', name: '', icon: 'mdi:toggle-switch', glow_color: '#22c55e' });
+    this._emit(cfg);
+  }
+
+  _removeSub(index) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    cfg.sub_buttons = (cfg.sub_buttons || []).filter((_, i) => i !== index);
+    this._emit(cfg);
+  }
+
   _sceneChanged(btnIndex, sceneIndex, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     const btn = cfg.entities[btnIndex];
@@ -231,6 +256,15 @@ class RoomProCardEditor extends LitElement {
           </div>
         </ha-expansion-panel>
 
+        <ha-expansion-panel outlined header="Sub-buttons (small row above)">
+          <div class="panel-body">
+            ${(this._config.sub_buttons || []).map((ent, i) => this._renderSubButtonEditor(ent, i))}
+            <mwc-button raised class="add-btn" @click=${this._addSub}>
+              <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Sub-button
+            </mwc-button>
+          </div>
+        </ha-expansion-panel>
+
         <ha-expansion-panel outlined .expanded=${true} header="Buttons">
           <div class="panel-body">
             ${entities.map((ent, i) => this._renderButtonEditor(ent, i))}
@@ -240,6 +274,65 @@ class RoomProCardEditor extends LitElement {
           </div>
         </ha-expansion-panel>
       </div>
+    `;
+  }
+
+  _renderSubButtonEditor(ent, i) {
+    const actions = [
+      { value: 'switch', label: 'Switch (toggle)' },
+      { value: 'light', label: 'Light (toggle)' },
+      { value: 'cover', label: 'Cover / blind (popup)' },
+      { value: 'lock', label: 'Lock / door (popup)' },
+      { value: 'power', label: 'Power (run script)' },
+      { value: 'custom', label: 'Custom service call' },
+      { value: 'info', label: 'Info (display only)' },
+    ];
+    return html`
+      <ha-expansion-panel outlined class="item-panel"
+        .header=${`Sub ${i + 1}${ent.name ? ' · ' + ent.name : ''}`}>
+        <ha-icon-button slot="icons" label="Remove"
+          @click=${(e) => { e.stopPropagation(); this._removeSub(i); }}>
+          <ha-icon icon="mdi:delete"></ha-icon>
+        </ha-icon-button>
+        <div class="panel-body">
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${ent.entity || ''}
+            label="Entity"
+            allow-custom-entity
+            @value-changed=${(e) => this._subChanged(i, 'entity', e.detail.value)}>
+          </ha-entity-picker>
+          <label class="tf">
+            <span>Action</span>
+            <select .value=${ent.type || 'switch'} @change=${(e) => this._subChanged(i, 'type', e.target.value)}>
+              ${actions.map((a) => html`<option value=${a.value} ?selected=${(ent.type || 'switch') === a.value}>${a.label}</option>`)}
+            </select>
+          </label>
+          ${this._text('Label (optional)', ent.name, (v) => this._subChanged(i, 'name', v))}
+          <ha-icon-picker
+            .value=${ent.icon || ''}
+            label="Icon"
+            @value-changed=${(e) => this._subChanged(i, 'icon', e.detail.value)}>
+          </ha-icon-picker>
+          <label class="noglow" style="font-size:0.8rem;">
+            <input type="checkbox" .checked=${!!ent.show_state}
+              @change=${(e) => this._subChanged(i, 'show_state', e.target.checked)} />
+            Show entity state as the label
+          </label>
+          <div class="color-grid">
+            ${this._glowField('Glow when ON', ent.glow_color, '#22c55e', (v) => this._subChanged(i, 'glow_color', v))}
+            ${this._glowField('Glow when OFF', ent.glow_color_off, '#ef4444', (v) => this._subChanged(i, 'glow_color_off', v))}
+          </div>
+          ${ent.type === 'custom' ? html`
+            ${this._text('Service (domain.service)', ent.service, (v) => this._subChanged(i, 'service', v))}
+            <label class="tf">
+              <span>Service data (YAML/JSON — optional)</span>
+              <textarea rows="2" .value=${ent.service_data || ''}
+                @input=${(e) => this._subChanged(i, 'service_data', e.target.value)}></textarea>
+            </label>
+          ` : ''}
+        </div>
+      </ha-expansion-panel>
     `;
   }
 
@@ -930,6 +1023,10 @@ class RoomProCard extends LitElement {
           </div>
         </div>
 
+        ${(this._config.sub_buttons && this._config.sub_buttons.length)
+          ? html`<div class="sub-grid">${this._config.sub_buttons.map(b => this._renderSubButton(b))}</div>`
+          : ''}
+
         <div class="controls-grid ${gridClass}">
           ${entities.map(ent => this._renderButton(ent))}
         </div>
@@ -939,12 +1036,14 @@ class RoomProCard extends LitElement {
     `;
   }
 
-  _renderButton(ent) {
+  // Resolve a button config into { icon, label, isActive, action }.
+  _resolveButton(ent) {
     const stateObj = ent.entity ? this._hass.states[ent.entity] : null;
     let isActive = false;
     let icon = ent.icon || 'mdi:help-circle';
-    let label = ent.name || (stateObj ? stateObj.attributes.friendly_name : 'Unknown');
+    const label = ent.name || (stateObj ? stateObj.attributes.friendly_name : 'Unknown');
     let action = () => {};
+    const onStates = ['on', 'open', 'active', 'running', 'cleaning', 'playing', 'home', 'heat', 'cool', 'unlocked'];
 
     if (ent.type === 'light') {
       isActive = stateObj && stateObj.state === 'on';
@@ -959,7 +1058,7 @@ class RoomProCard extends LitElement {
       icon = ent.icon || 'mdi:speaker';
       action = () => this._togglePopup('audio', ent);
     } else if (ent.type === 'custom') {
-      isActive = stateObj && ['on', 'open', 'active', 'running', 'cleaning', 'playing', 'home', 'heat', 'cool', 'unlocked'].includes(String(stateObj.state).toLowerCase());
+      isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
       icon = ent.icon || 'mdi:gesture-tap-button';
       action = () => this._runCustom(ent);
     } else if (ent.type === 'cover') {
@@ -980,20 +1079,53 @@ class RoomProCard extends LitElement {
     } else if (ent.type === 'power') {
       icon = ent.icon || 'mdi:power';
       action = () => this._handleClick(ent.entity, 'script', 'turn_on');
-      return html`
-        <div class="btn power-btn" style=${this._buttonStyle(ent, false)} @click=${action}>
-          <ha-icon icon=${icon}></ha-icon>
-          <span class="btn-label">${label}</span>
-        </div>
-      `;
+    } else if (ent.type === 'info') {
+      isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
+      icon = ent.icon || 'mdi:information-outline';
+      action = () => {};
     }
 
+    return { icon, label, isActive, action, isPower: ent.type === 'power' };
+  }
+
+  _renderButton(ent) {
+    const { icon, label, isActive, action, isPower } = this._resolveButton(ent);
+    const cls = isPower ? 'btn power-btn' : `btn ${isActive ? 'active' : ''} ${ent.type}`;
     return html`
-      <div class="btn ${isActive ? 'active' : ''} ${ent.type}" style=${this._buttonStyle(ent, isActive)} @click=${action}>
+      <div class="${cls}" style=${this._buttonStyle(ent, isPower ? false : isActive)} @click=${action}>
         <ha-icon icon=${icon}></ha-icon>
         <span class="btn-label">${label}</span>
       </div>
     `;
+  }
+
+  // Small pill button for the optional row above the main buttons.
+  _renderSubButton(ent) {
+    const { icon, isActive, action } = this._resolveButton(ent);
+    const stateObj = ent.entity ? this._hass.states[ent.entity] : null;
+    let label = ent.name || '';
+    if (ent.show_state && stateObj) {
+      const unit = stateObj.attributes.unit_of_measurement || '';
+      label = `${stateObj.state}${unit ? ' ' + unit : ''}`;
+    }
+    return html`
+      <div class="sub-btn ${isActive ? 'active' : ''}" style=${this._subButtonStyle(ent, isActive)} @click=${action}>
+        <ha-icon icon=${icon}></ha-icon>
+        ${label ? html`<span>${label}</span>` : ''}
+      </div>
+    `;
+  }
+
+  _subButtonStyle(ent, isActive) {
+    const glow = isActive ? ent.glow_color : ent.glow_color_off;
+    const parts = [];
+    if (ent.background_color) parts.push(`background:${ent.background_color}`);
+    if (glow) {
+      parts.push(`border-color:${glow}`);
+      parts.push(`box-shadow:0 0 8px ${glow}`);
+      parts.push(`color:${glow}`);
+    }
+    return parts.join(';');
   }
 
   _renderPopup() {
@@ -1235,6 +1367,38 @@ class RoomProCard extends LitElement {
         gap: 12px;
         background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
       }
+
+      /* Optional thin row of small buttons above the main grid. */
+      .sub-grid {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+      .sub-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 30px;
+        padding: 0 11px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 15px;
+        backdrop-filter: blur(4px);
+        cursor: pointer;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      }
+      .sub-btn ha-icon { --mdc-icon-size: 16px; }
+      .sub-btn:active { transform: scale(0.94); }
 
       .btn {
         display: flex;
