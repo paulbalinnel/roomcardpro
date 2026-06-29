@@ -112,6 +112,29 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
+  _channelChanged(btnIndex, chIndex, key, value) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.channels = btn.channels ? [...btn.channels] : [];
+    btn.channels[chIndex] = { ...btn.channels[chIndex], [key]: value };
+    this._emit(cfg);
+  }
+
+  _addChannel(btnIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.channels = btn.channels ? [...btn.channels] : [];
+    btn.channels.push({ name: '', logo: '', service: '' });
+    this._emit(cfg);
+  }
+
+  _removeChannel(btnIndex, chIndex) {
+    const cfg = JSON.parse(JSON.stringify(this._config));
+    const btn = cfg.entities[btnIndex];
+    btn.channels = (btn.channels || []).filter((_, i) => i !== chIndex);
+    this._emit(cfg);
+  }
+
   _sceneChanged(btnIndex, sceneIndex, key, value) {
     const cfg = JSON.parse(JSON.stringify(this._config));
     const btn = cfg.entities[btnIndex];
@@ -504,8 +527,38 @@ class RoomProCardEditor extends LitElement {
         ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
         ${ent.type === 'select' ? this._renderOptionsEditor(ent, i) : ''}
         ${ent.type === 'custom' ? this._renderCustomEditor(ent, i) : ''}
+        ${ent.type === 'audio' ? this._renderChannelsEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
+    `;
+  }
+
+  _renderChannelsEditor(ent, btnIndex) {
+    const channels = ent.channels || [];
+    return html`
+      <div class="scenes-editor">
+        <div class="be-subtitle">Channel shortcuts (shown in the media popup)</div>
+        ${channels.map((c, ci) => html`
+          <div class="scene-row">
+            <div class="scene-row-header">
+              <span>Channel ${ci + 1}</span>
+              <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeChannel(btnIndex, ci)}></ha-icon>
+            </div>
+            ${this._text('Name', c.name, (v) => this._channelChanged(btnIndex, ci, 'name', v))}
+            ${this._text('Logo image URL / path (e.g. /local/logos/dstv.png)', c.logo, (v) => this._channelChanged(btnIndex, ci, 'logo', v))}
+            ${c.logo ? html`<img class="img-preview" src=${c.logo} alt="" @error=${(e) => { e.target.style.display = 'none'; }} />` : ''}
+            ${this._text('Service to run (e.g. script.tv_switch_to_atv)', c.service, (v) => this._channelChanged(btnIndex, ci, 'service', v))}
+            <label class="tf">
+              <span>Service data (YAML/JSON — optional)</span>
+              <textarea rows="2" .value=${c.service_data || ''}
+                @input=${(e) => this._channelChanged(btnIndex, ci, 'service_data', e.target.value)}></textarea>
+            </label>
+          </div>
+        `)}
+        <mwc-button outlined class="add-scene" @click=${() => this._addChannel(btnIndex)}>
+          <ha-icon icon="mdi:plus"></ha-icon>&nbsp;Add Channel
+        </mwc-button>
+      </div>
     `;
   }
 
@@ -910,6 +963,20 @@ class RoomProCard extends LitElement {
     this._hass.callService(domain, service, payload);
   }
 
+  // Channel tile in the media popup: runs its service (e.g. a script).
+  _runChannel(c) {
+    if (!c || !c.service || !this._hass) return;
+    const dot = c.service.indexOf('.');
+    if (dot < 1) return;
+    const domain = c.service.slice(0, dot);
+    const service = c.service.slice(dot + 1);
+    const payload = { ...this._parseData(c.service_data) };
+    if (c.entity && payload.entity_id === undefined && payload.target === undefined) {
+      payload.entity_id = c.entity;
+    }
+    this._hass.callService(domain, service, payload);
+  }
+
   // Parse JSON, or a simple flat "key: value" YAML, into an object.
   _parseData(text) {
     const t = (text || '').trim();
@@ -1159,6 +1226,18 @@ class RoomProCard extends LitElement {
             <ha-icon icon="${isMuted ? 'mdi:volume-off' : 'mdi:volume-mute'}"></ha-icon>
           </div>
         </div>
+        ${(ent.channels && ent.channels.length) ? html`
+          <div class="popup-channels">
+            ${ent.channels.map(c => html`
+              <div class="popup-channel" @click=${() => this._runChannel(c)} title=${c.name || ''}>
+                ${c.logo
+                  ? html`<img src=${c.logo} alt=${c.name || ''} @error=${(e) => { e.target.style.display = 'none'; }} />`
+                  : html`<ha-icon icon=${c.icon || 'mdi:television'}></ha-icon>`}
+                ${c.name ? html`<span>${c.name}</span>` : ''}
+              </div>
+            `)}
+          </div>
+        ` : ''}
       `;
     } else if (kind === 'cover') {
       title = (ent && ent.name) || 'Cover';
@@ -1495,6 +1574,44 @@ class RoomProCard extends LitElement {
         opacity: 0.8;
         margin-bottom: 14px;
         text-transform: capitalize;
+      }
+
+      .popup-channels {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .popup-channel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        width: 74px;
+        min-height: 58px;
+        padding: 8px 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.15s ease;
+      }
+      .popup-channel:hover { background: rgba(255, 255, 255, 0.16); }
+      .popup-channel:active { transform: scale(0.95); }
+      .popup-channel img {
+        max-width: 100%;
+        max-height: 30px;
+        object-fit: contain;
+      }
+      .popup-channel ha-icon { --mdc-icon-size: 26px; }
+      .popup-channel span {
+        font-size: var(--popup-font-size, 0.62rem);
+        line-height: 1.1;
+        text-align: center;
+        max-width: 100%;
+        overflow-wrap: anywhere;
       }
 
       .popup-row {
