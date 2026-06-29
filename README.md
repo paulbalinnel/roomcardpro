@@ -77,6 +77,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `header_font_size` | Room-name font size (px) |
 | `sensor_font_size` | Sensor-strip font size (px) |
 | `popup_font_size` | Popup option/label font size (px) |
+| `channel_font_size` | Media-popup channel name font size (px; `0` hides the name so the logo fills the tile) |
 | `status_entities` | List of entity ids — header status icons |
 | `sensors` | List of `{ entity, prefix, unit }` for the sensor strip |
 | `sub_buttons` | Optional small pill buttons shown in a thin row above the main buttons (sub-switches / info chips) |

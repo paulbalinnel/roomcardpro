@@ -244,6 +244,15 @@ class RoomProCardEditor extends LitElement {
                 @change=${(e) => this._topValue('popup_font_size', parseInt(e.target.value, 10))}>
               </ha-slider>
             </div>
+
+            <div class="slider-row">
+              <label>Channel name font size: <strong>${this._config.channel_font_size ?? 11}px</strong></label>
+              <ha-slider
+                min="0" max="22" step="1"
+                .value=${this._config.channel_font_size ?? 11}
+                @change=${(e) => this._topValue('channel_font_size', parseInt(e.target.value, 10))}>
+              </ha-slider>
+            </div>
           </div>
         </ha-expansion-panel>
 
@@ -1071,6 +1080,7 @@ class RoomProCard extends LitElement {
     if (header_font_size) styleVars.push(`--room-title-font-size:${header_font_size}px`);
     if (this._config.sensor_font_size) styleVars.push(`--sensor-font-size:${this._config.sensor_font_size}px`);
     if (this._config.popup_font_size) styleVars.push(`--popup-font-size:${this._config.popup_font_size}px`);
+    if (this._config.channel_font_size) styleVars.push(`--channel-font-size:${this._config.channel_font_size}px`);
     const containerStyle = styleVars.join(';');
 
     return html`
@@ -1589,25 +1599,34 @@ class RoomProCard extends LitElement {
         align-items: center;
         justify-content: center;
         gap: 4px;
-        width: 74px;
-        min-height: 58px;
-        padding: 8px 6px;
+        width: 96px;
+        height: 64px;
+        padding: 6px;
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 10px;
         cursor: pointer;
+        overflow: hidden;
         transition: background 0.15s ease, transform 0.15s ease;
       }
       .popup-channel:hover { background: rgba(255, 255, 255, 0.16); }
       .popup-channel:active { transform: scale(0.95); }
+      /* Logo fills the whole tile (minus the optional name caption). */
       .popup-channel img {
-        max-width: 100%;
-        max-height: 30px;
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 0;
         object-fit: contain;
       }
-      .popup-channel ha-icon { --mdc-icon-size: 26px; }
+      .popup-channel ha-icon {
+        flex: 1 1 auto;
+        --mdc-icon-size: 34px;
+        display: flex;
+        align-items: center;
+      }
       .popup-channel span {
-        font-size: var(--popup-font-size, 0.62rem);
+        flex: 0 0 auto;
+        font-size: var(--channel-font-size, 0.68rem);
         line-height: 1.1;
         text-align: center;
         max-width: 100%;
