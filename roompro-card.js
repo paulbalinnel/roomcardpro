@@ -557,11 +557,24 @@ class RoomProCardEditor extends LitElement {
             ${this._text('Logo image URL / path (e.g. /local/logos/dstv.png)', c.logo, (v) => this._channelChanged(btnIndex, ci, 'logo', v))}
             ${c.logo ? html`<img class="img-preview" src=${c.logo} alt="" @error=${(e) => { e.target.style.display = 'none'; }} />` : ''}
             ${this._text('Service to run (e.g. script.tv_switch_to_atv)', c.service, (v) => this._channelChanged(btnIndex, ci, 'service', v))}
+            <ha-entity-picker
+              .hass=${this.hass}
+              .value=${c.entity || ''}
+              label="Target entity (optional — sent as entity_id)"
+              allow-custom-entity
+              @value-changed=${(e) => this._channelChanged(btnIndex, ci, 'entity', e.detail.value)}>
+            </ha-entity-picker>
             <label class="tf">
-              <span>Service data (YAML/JSON — optional)</span>
-              <textarea rows="2" .value=${c.service_data || ''}
+              <span>Extra service data (YAML/JSON — optional)</span>
+              <textarea rows="2" placeholder="source: HDMI 1"
+                .value=${c.service_data || ''}
                 @input=${(e) => this._channelChanged(btnIndex, ci, 'service_data', e.target.value)}></textarea>
             </label>
+            <div class="hint">
+              Simplest: set <strong>Service</strong> to the script itself
+              (<code>script.tv_switch_to_atv</code>) and leave the rest blank.
+              Or use <code>script.turn_on</code> + pick the script as the target entity.
+            </div>
           </div>
         `)}
         <mwc-button outlined class="add-scene" @click=${() => this._addChannel(btnIndex)}>
