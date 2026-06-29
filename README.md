@@ -97,6 +97,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `font_size` | Label font size (px) |
 | `scenes` | (scene) list of `{ entity, name, icon }` |
 | `options` | (select) optional list of `{ option, name, icon }` |
+| `channels` | (media player) channel shortcuts `{ name, logo, service, service_data }` shown in the popup |
 | `service` / `service_data` | (custom) `domain.service` and optional data |
 
 ## Example
