@@ -412,6 +412,11 @@ class RoomProCardEditor extends LitElement {
             <div class="color-grid">
               ${this._colorField('Colour when ON', it.color, '#4ade80', (v) => this._statusChanged(i, 'color', v))}
             </div>
+            <label class="noglow" style="font-size:0.8rem;">
+              <input type="checkbox" .checked=${!!it.hide_off}
+                @change=${(e) => this._statusChanged(i, 'hide_off', e.target.checked)} />
+              Hide icon when off / inactive
+            </label>
           </div>
         `;
       })}
@@ -441,7 +446,14 @@ class RoomProCardEditor extends LitElement {
     const cleaned = list
       .map((it) => {
         if (!it.entity) return null;
-        return (it.icon || it.color) ? { entity: it.entity, ...(it.icon ? { icon: it.icon } : {}), ...(it.color ? { color: it.color } : {}) } : it.entity;
+        return (it.icon || it.color || it.hide_off)
+          ? {
+              entity: it.entity,
+              ...(it.icon ? { icon: it.icon } : {}),
+              ...(it.color ? { color: it.color } : {}),
+              ...(it.hide_off ? { hide_off: true } : {}),
+            }
+          : it.entity;
       })
       .filter((v) => v);
     this._writeStatus(cleaned);
@@ -1182,6 +1194,7 @@ class RoomProCard extends LitElement {
         const eid = it.entity;
         const s = this._hass.states[eid];
         const active = s && !INACTIVE.includes(String(s.state).toLowerCase());
+        if (it.hide_off && !active) return html``;
         const domain = eid.split('.')[0];
         const icon = it.icon || (s && s.attributes && s.attributes.icon) || DOMAIN_ICONS[domain] || 'mdi:circle-outline';
         const style = (active && it.color)
