@@ -62,6 +62,7 @@ For the intended look, put the cards in a **Panel** view and hide the header/sid
 | **Input select / select** | Popup of the entity's options (auto-filled) |
 | **Power** | Run a script |
 | **Navigate** | Open a dashboard/view via native navigation (no add-ons) |
+| **Card popup** | Full-screen popup rendering any Lovelace card (`card:`) — no browser_mod/card-mod needed |
 | **Custom service call** | Call any `domain.service` with optional YAML/JSON data |
 
 Each button reflects its entity's live on/off state via the two-state glow.
