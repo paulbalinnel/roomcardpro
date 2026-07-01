@@ -59,6 +59,7 @@ class RoomProCardEditor extends LitElement {
       if (value !== 'select') delete updated.options;
       if (value !== 'audio') delete updated.channels;
       if (value !== 'navigate') delete updated.navigation_path;
+      if (value !== 'popup') delete updated.card;
       if (value !== 'custom') {
         delete updated.service;
         delete updated.service_data;
@@ -467,6 +468,7 @@ class RoomProCardEditor extends LitElement {
       { value: 'select', label: 'Input select / select (options popup)' },
       { value: 'custom', label: 'Custom service call (YAML / advanced)' },
       { value: 'navigate', label: 'Navigate (open a dashboard / view)' },
+      { value: 'popup', label: 'Card popup (show any Lovelace card)' },
       { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
@@ -540,6 +542,15 @@ class RoomProCardEditor extends LitElement {
         ${ent.type === 'select' ? this._renderOptionsEditor(ent, i) : ''}
         ${ent.type === 'custom' ? this._renderCustomEditor(ent, i) : ''}
         ${ent.type === 'navigate' ? this._text('Navigation path (e.g. /dashboard-dash2/utilities)', ent.navigation_path, (v) => this._buttonChanged(i, 'navigation_path', v)) : ''}
+        ${ent.type === 'popup' ? html`
+          <div class="hint">
+            Opens a full-screen popup containing any Lovelace card. Define the
+            content under a <code>card:</code> key on this button in
+            <strong>YAML mode</strong> (Show code editor) — e.g. a
+            <code>vertical-stack</code> with markdown, mushroom, gauges, etc.
+            ${ent.card ? html`<br />✅ A <code>card:</code> config is set.` : html`<br />⚠ No <code>card:</code> set yet.`}
+          </div>
+        ` : ''}
         ${ent.type === 'audio' ? this._renderChannelsEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
@@ -930,6 +941,74 @@ class RoomProCard extends LitElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (this._modalCard) this._modalCard.hass = hass;
+  }
+
+  disconnectedCallback() {
+    if (super.disconnectedCallback) super.disconnectedCallback();
+    this._closeCardPopup();
+  }
+
+  // Full-screen modal that renders any Lovelace card config (ent.card) using
+  // HA's own card helpers. Portaled to <body> so complex stacks aren't clipped
+  // by the card, and needs no browser_mod / card-mod for the popup itself.
+  async _openCardPopup(ent) {
+    if (!ent.card || !this._hass) return;
+    this._closeCardPopup();
+
+    const helpers = await window.loadCardHelpers();
+    const card = helpers.createCardElement(ent.card);
+    card.hass = this._hass;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);';
+
+    const box = document.createElement('div');
+    box.style.cssText =
+      'width:min(720px,94vw);max-height:90vh;overflow:auto;position:relative;' +
+      'background:var(--ha-card-background,var(--card-background-color,#1c1c1c));' +
+      'border-radius:18px;padding:16px;box-shadow:0 12px 48px rgba(0,0,0,0.6);';
+
+    if (ent.name) {
+      const title = document.createElement('div');
+      title.textContent = ent.name;
+      title.style.cssText = 'font-weight:700;font-size:1.1rem;margin:0 40px 12px 4px;color:var(--primary-text-color);';
+      box.appendChild(title);
+    }
+
+    const close = document.createElement('button');
+    close.innerHTML = '&times;';
+    close.setAttribute('aria-label', 'Close');
+    close.style.cssText =
+      'position:absolute;top:10px;right:12px;width:32px;height:32px;border:none;border-radius:50%;' +
+      'background:rgba(127,127,127,0.25);color:var(--primary-text-color);font-size:20px;line-height:1;cursor:pointer;';
+    close.addEventListener('click', () => this._closeCardPopup());
+
+    box.appendChild(card);
+    box.appendChild(close);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeCardPopup(); });
+
+    this._modalKeyHandler = (e) => { if (e.key === 'Escape') this._closeCardPopup(); };
+    window.addEventListener('keydown', this._modalKeyHandler);
+
+    document.body.appendChild(overlay);
+    this._modalOverlay = overlay;
+    this._modalCard = card;
+  }
+
+  _closeCardPopup() {
+    if (this._modalKeyHandler) {
+      window.removeEventListener('keydown', this._modalKeyHandler);
+      this._modalKeyHandler = null;
+    }
+    if (this._modalOverlay) {
+      this._modalOverlay.remove();
+      this._modalOverlay = null;
+      this._modalCard = null;
+    }
   }
 
   static getConfigElement() {
@@ -1188,6 +1267,10 @@ class RoomProCard extends LitElement {
       isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
       icon = ent.icon || 'mdi:open-in-app';
       action = () => this._navigate(ent.navigation_path);
+    } else if (ent.type === 'popup') {
+      isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
+      icon = ent.icon || 'mdi:card-text-outline';
+      action = () => this._openCardPopup(ent);
     }
 
     // Also honour a standard tap_action: navigate (works on any button type).
