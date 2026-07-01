@@ -389,21 +389,32 @@ class RoomProCardEditor extends LitElement {
   _renderStatusEditor() {
     const list = this._statusList();
     return html`
-      ${list.map((eid, i) => html`
-        <div class="scene-row">
-          <div class="scene-row-header">
-            <span>Status ${i + 1}</span>
-            <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeStatus(i)}></ha-icon>
+      ${list.map((item, i) => {
+        const it = (typeof item === 'string') ? { entity: item } : (item || {});
+        return html`
+          <div class="scene-row">
+            <div class="scene-row-header">
+              <span>Status ${i + 1}</span>
+              <ha-icon class="del" icon="mdi:delete" @click=${() => this._removeStatus(i)}></ha-icon>
+            </div>
+            <ha-entity-picker
+              .hass=${this.hass}
+              .value=${it.entity || ''}
+              label="Status entity (any domain)"
+              allow-custom-entity
+              @value-changed=${(e) => this._statusChanged(i, 'entity', e.detail.value)}>
+            </ha-entity-picker>
+            <ha-icon-picker
+              .value=${it.icon || ''}
+              label="Icon (optional — e.g. mdi:lightbulb-group)"
+              @value-changed=${(e) => this._statusChanged(i, 'icon', e.detail.value)}>
+            </ha-icon-picker>
+            <div class="color-grid">
+              ${this._colorField('Colour when ON', it.color, '#4ade80', (v) => this._statusChanged(i, 'color', v))}
+            </div>
           </div>
-          <ha-entity-picker
-            .hass=${this.hass}
-            .value=${eid || ''}
-            label="Status entity (any domain)"
-            allow-custom-entity
-            @value-changed=${(e) => this._statusChanged(i, e.detail.value)}>
-          </ha-entity-picker>
-        </div>
-      `)}
+        `;
+      })}
     `;
   }
 
@@ -422,10 +433,18 @@ class RoomProCardEditor extends LitElement {
     this._emit(cfg);
   }
 
-  _statusChanged(index, value) {
-    const list = [...this._statusList()];
-    list[index] = value;
-    this._writeStatus(list.filter((v) => v));
+  _statusChanged(index, key, value) {
+    const list = this._statusList().map((x) => (typeof x === 'string') ? { entity: x } : { ...x });
+    list[index] = { ...list[index], [key]: value };
+    // Store as a plain string when only an entity is set (keeps YAML clean);
+    // keep an object when a custom icon/colour is used.
+    const cleaned = list
+      .map((it) => {
+        if (!it.entity) return null;
+        return (it.icon || it.color) ? { entity: it.entity, ...(it.icon ? { icon: it.icon } : {}), ...(it.color ? { color: it.color } : {}) } : it.entity;
+      })
+      .filter((v) => v);
+    this._writeStatus(cleaned);
   }
 
   _addStatus() {
@@ -1157,14 +1176,19 @@ class RoomProCard extends LitElement {
     };
 
     return statusList
-      .filter((eid) => eid)
-      .map((eid) => {
+      .map((item) => (typeof item === 'string') ? { entity: item } : (item || {}))
+      .filter((it) => it.entity)
+      .map((it) => {
+        const eid = it.entity;
         const s = this._hass.states[eid];
         const active = s && !INACTIVE.includes(String(s.state).toLowerCase());
         const domain = eid.split('.')[0];
-        const icon = (s && s.attributes && s.attributes.icon) || DOMAIN_ICONS[domain] || 'mdi:circle-outline';
+        const icon = it.icon || (s && s.attributes && s.attributes.icon) || DOMAIN_ICONS[domain] || 'mdi:circle-outline';
+        const style = (active && it.color)
+          ? `opacity:1;color:${it.color};text-shadow:0 0 10px ${it.color};`
+          : '';
         return html`
-          <div class="status-icon ${active ? 'active' : ''}" title=${eid}>
+          <div class="status-icon ${active ? 'active' : ''}" style=${style} title=${eid}>
             <ha-icon icon=${icon}></ha-icon>
           </div>
         `;
