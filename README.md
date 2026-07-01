@@ -80,7 +80,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `sensor_font_size` | Sensor-strip font size (px) |
 | `popup_font_size` | Popup option/label font size (px) |
 | `channel_font_size` | Media-popup channel name font size (px; `0` hides the name so the logo fills the tile) |
-| `status_entities` | Header status icons. Each item is an entity id, or `{ entity, icon, color }` for a custom icon and on-colour |
+| `status_entities` | Header status icons. Each item is an entity id, or `{ entity, icon, color, hide_off }` — custom icon, on-colour, and optionally hide when off |
 | `sensors` | List of `{ entity, prefix, unit }` for the sensor strip |
 | `sub_buttons` | Optional small pill buttons shown in a thin row above the main buttons (sub-switches / info chips) |
 | `entities` | List of buttons (see below) |
