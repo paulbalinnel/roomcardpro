@@ -57,6 +57,8 @@ class RoomProCardEditor extends LitElement {
     if (key === 'type') {
       if (value !== 'scene') delete updated.scenes;
       if (value !== 'select') delete updated.options;
+      if (value !== 'audio') delete updated.channels;
+      if (value !== 'navigate') delete updated.navigation_path;
       if (value !== 'custom') {
         delete updated.service;
         delete updated.service_data;
@@ -464,6 +466,7 @@ class RoomProCardEditor extends LitElement {
       { value: 'lock', label: 'Lock / door (lock/unlock popup)' },
       { value: 'select', label: 'Input select / select (options popup)' },
       { value: 'custom', label: 'Custom service call (YAML / advanced)' },
+      { value: 'navigate', label: 'Navigate (open a dashboard / view)' },
       { value: 'audio', label: 'Media player (on/off + volume)' },
       { value: 'scene', label: 'Scene (picker popup)' },
       { value: 'power', label: 'Power (run script)' },
@@ -536,6 +539,7 @@ class RoomProCardEditor extends LitElement {
         ${ent.type === 'scene' ? this._renderScenesEditor(ent, i) : ''}
         ${ent.type === 'select' ? this._renderOptionsEditor(ent, i) : ''}
         ${ent.type === 'custom' ? this._renderCustomEditor(ent, i) : ''}
+        ${ent.type === 'navigate' ? this._text('Navigation path (e.g. /dashboard-dash2/utilities)', ent.navigation_path, (v) => this._buttonChanged(i, 'navigation_path', v)) : ''}
         ${ent.type === 'audio' ? this._renderChannelsEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
@@ -999,6 +1003,13 @@ class RoomProCard extends LitElement {
     this._hass.callService(domain, service, payload);
   }
 
+  // Native Home Assistant navigation (no browser_mod / card-mod needed).
+  _navigate(path) {
+    if (!path) return;
+    history.pushState(null, '', path);
+    window.dispatchEvent(new Event('location-changed'));
+  }
+
   // Parse JSON, or a simple flat "key: value" YAML, into an object.
   _parseData(text) {
     const t = (text || '').trim();
@@ -1173,6 +1184,15 @@ class RoomProCard extends LitElement {
       isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
       icon = ent.icon || 'mdi:information-outline';
       action = () => {};
+    } else if (ent.type === 'navigate') {
+      isActive = stateObj && onStates.includes(String(stateObj.state).toLowerCase());
+      icon = ent.icon || 'mdi:open-in-app';
+      action = () => this._navigate(ent.navigation_path);
+    }
+
+    // Also honour a standard tap_action: navigate (works on any button type).
+    if (ent.tap_action && ent.tap_action.action === 'navigate' && ent.tap_action.navigation_path) {
+      action = () => this._navigate(ent.tap_action.navigation_path);
     }
 
     return { icon, label, isActive, action, isPower: ent.type === 'power' };
