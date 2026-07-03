@@ -1214,7 +1214,9 @@ class RoomProCard extends LitElement {
     const { name, background_image, thumbnail, header_icon, entities, header_font_size } = this._config;
 
     const entityCount = entities.length;
-    const gridClass = entityCount > 5 ? 'grid-double-row' : 'grid-single-row';
+    const doubleRow = entityCount > 5;
+    const gridClass = doubleRow ? 'grid-double-row' : 'grid-single-row';
+    const hasSub = this._config.sub_buttons && this._config.sub_buttons.length;
 
     const styleVars = [];
     if (header_font_size) styleVars.push(`--room-title-font-size:${header_font_size}px`);
@@ -1224,7 +1226,7 @@ class RoomProCard extends LitElement {
     const containerStyle = styleVars.join(';');
 
     return html`
-      <div class="card-container" style=${containerStyle}>
+      <div class="card-container ${doubleRow ? 'two-rows' : ''} ${hasSub ? 'has-sub' : ''}" style=${containerStyle}>
         <div class="bg-image" style="background-image: url('${background_image}');"></div>
         
         <div class="header">
@@ -1500,14 +1502,26 @@ class RoomProCard extends LitElement {
 
       .card-container {
         position: relative;
-        height: 260px; 
+        height: 260px;
         border-radius: 24px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end; 
+        justify-content: flex-end;
         color: #fff;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      /* Grow the card when the buttons wrap to a second row (6+ buttons),
+         and a little more when a sub-button row is present, so nothing clips. */
+      .card-container.two-rows {
+        height: 348px;
+      }
+      .card-container.has-sub {
+        height: 300px;
+      }
+      .card-container.two-rows.has-sub {
+        height: 388px;
       }
 
       .bg-image {
