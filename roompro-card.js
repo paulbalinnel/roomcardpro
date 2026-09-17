@@ -591,6 +591,7 @@ class RoomProCardEditor extends LitElement {
             allow-custom-entity
             @value-changed=${(e) => this._buttonChanged(i, 'camera', e.detail.value)}>
           </ha-entity-picker>
+          ${this._text('Camera aspect ratio (optional, e.g. 16:9 — blank = camera\'s own)', ent.camera_aspect, (v) => this._buttonChanged(i, 'camera_aspect', v))}
           <div class="hint">
             Shows a live feed at the top of this button's popup. The stream
             starts when the popup opens and stops when it closes.
@@ -1221,7 +1222,7 @@ class RoomProCard extends LitElement {
     } else {
       this._destroyCamCard();
       this._activePopup = { kind, ent };
-      if (ent && ent.camera) this._buildCamCard(ent.camera);
+      if (ent && ent.camera) this._buildCamCard(ent.camera, ent.camera_aspect);
     }
   }
 
@@ -1232,19 +1233,22 @@ class RoomProCard extends LitElement {
 
   // Build HA's own picture-entity card so the popup inherits its stream
   // handling (HLS/WebRTC, retries) instead of re-implementing any of it.
-  async _buildCamCard(entityId) {
+  async _buildCamCard(entityId, aspect) {
     const token = Symbol('cam');
     this._camToken = token;
     try {
       const helpers = await window.loadCardHelpers();
-      const card = await helpers.createCardElement({
+      const cfg = {
         type: 'picture-entity',
         entity: entityId,
         camera_view: 'live',
         show_name: false,
         show_state: false,
-        aspect_ratio: '16:9',
-      });
+      };
+      // Default to the camera's own shape (doorbells are often 4:3);
+      // camera_aspect forces a ratio box, e.g. '16:9'.
+      if (aspect) cfg.aspect_ratio = aspect;
+      const card = await helpers.createCardElement(cfg);
       // The popup may have been closed or switched while we awaited.
       if (this._camToken !== token) return;
       card.hass = this._hass;
@@ -1853,14 +1857,12 @@ class RoomProCard extends LitElement {
 
       .popup-camera {
         width: 100%;
-        aspect-ratio: 16 / 9;
         border-radius: 12px;
         overflow: hidden;
         margin-bottom: 14px;
         background: rgba(0, 0, 0, 0.45);
       }
       .popup-camera ha-card {
-        height: 100%;
         border: none;
         box-shadow: none;
         background: transparent;
@@ -1869,7 +1871,9 @@ class RoomProCard extends LitElement {
       .popup-camera video {
         display: block;
         width: 100%;
-        object-fit: cover;
+        height: auto;
+        max-height: 65vh;
+        object-fit: contain;
       }
 
       .popup-status {
