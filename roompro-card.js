@@ -582,6 +582,20 @@ class RoomProCardEditor extends LitElement {
             ${ent.card ? html`<br />✅ A <code>card:</code> config is set.` : html`<br />⚠ No <code>card:</code> set yet.`}
           </div>
         ` : ''}
+        ${['lock', 'cover', 'audio'].includes(ent.type) ? html`
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${ent.camera || ''}
+            .includeDomains=${['camera']}
+            label="Camera in popup (optional)"
+            allow-custom-entity
+            @value-changed=${(e) => this._buttonChanged(i, 'camera', e.detail.value)}>
+          </ha-entity-picker>
+          <div class="hint">
+            Shows a live feed at the top of this button's popup. The stream
+            starts when the popup opens and stops when it closes.
+          </div>
+        ` : ''}
         ${ent.type === 'audio' ? this._renderChannelsEditor(ent, i) : ''}
         </div>
       </ha-expansion-panel>
@@ -959,6 +973,7 @@ class RoomProCard extends LitElement {
       _hass: { state: false },
       _config: { state: true },
       _activePopup: { state: true },
+      _camCard: { state: true },
     };
   }
 
@@ -973,6 +988,7 @@ class RoomProCard extends LitElement {
   set hass(hass) {
     this._hass = hass;
     if (this._modalCard) this._modalCard.hass = hass;
+    if (this._camCard) this._camCard.hass = hass;
   }
 
   disconnectedCallback() {
@@ -1161,10 +1177,46 @@ class RoomProCard extends LitElement {
   _togglePopup(kind, ent) {
     const cur = this._activePopup;
     if (cur && cur.kind === kind && cur.ent === ent) {
-      this._activePopup = null;
+      this._closePopup();
     } else {
+      this._destroyCamCard();
       this._activePopup = { kind, ent };
+      if (ent && ent.camera) this._buildCamCard(ent.camera);
     }
+  }
+
+  _closePopup() {
+    this._activePopup = null;
+    this._destroyCamCard();
+  }
+
+  // Build HA's own picture-entity card so the popup inherits its stream
+  // handling (HLS/WebRTC, retries) instead of re-implementing any of it.
+  async _buildCamCard(entityId) {
+    const token = Symbol('cam');
+    this._camToken = token;
+    try {
+      const helpers = await window.loadCardHelpers();
+      const card = await helpers.createCardElement({
+        type: 'picture-entity',
+        entity: entityId,
+        camera_view: 'live',
+        show_name: false,
+        show_state: false,
+      });
+      // The popup may have been closed or switched while we awaited.
+      if (this._camToken !== token) return;
+      card.hass = this._hass;
+      this._camCard = card;
+    } catch (err) {
+      console.error('RoomPro Card: could not build camera card', err);
+    }
+  }
+
+  // Dropping the node lets Lit remove it, which tears the stream down.
+  _destroyCamCard() {
+    this._camToken = null;
+    this._camCard = null;
   }
 
   _renderStatusIcons() {
@@ -1452,7 +1504,7 @@ class RoomProCard extends LitElement {
             const lbl = o.name || o.option;
             return html`
               <div class="popup-scene-item ${current === val ? 'current' : ''}"
-                   @click=${() => { this._handleClick(ent.entity, domain, 'select_option', { option: val }); this._activePopup = null; }}>
+                   @click=${() => { this._handleClick(ent.entity, domain, 'select_option', { option: val }); this._closePopup(); }}>
                 ${o.icon ? html`<ha-icon icon=${o.icon}></ha-icon>` : ''}
                 <span>${lbl}</span>
               </div>
@@ -1468,7 +1520,7 @@ class RoomProCard extends LitElement {
             const domain = (s.entity || '').split('.')[0] || 'scene';
             return html`
               <div class="popup-scene-item"
-                   @click=${() => { this._handleClick(s.entity, domain, 'turn_on'); this._activePopup = null; }}>
+                   @click=${() => { this._handleClick(s.entity, domain, 'turn_on'); this._closePopup(); }}>
                 <ha-icon icon=${s.icon || 'mdi:palette'}></ha-icon>
                 <span>${s.name}</span>
               </div>
@@ -1479,13 +1531,14 @@ class RoomProCard extends LitElement {
     }
 
     return html`
-      <div class="popup-overlay" @click=${() => this._activePopup = null}>
+      <div class="popup-overlay" @click=${() => this._closePopup()}>
         <div class="popup-card" @click=${(e) => e.stopPropagation()}>
           <div class="popup-header">
             <span>${title}</span>
-            <ha-icon icon="mdi:close" @click=${() => this._activePopup = null}></ha-icon>
+            <ha-icon icon="mdi:close" @click=${() => this._closePopup()}></ha-icon>
           </div>
           <div class="popup-body">
+            ${this._camCard ? html`<div class="popup-camera">${this._camCard}</div>` : ''}
             ${content}
           </div>
         </div>
@@ -1744,6 +1797,28 @@ class RoomProCard extends LitElement {
         font-size: 1rem;
       }
       .popup-header ha-icon { cursor: pointer; opacity: 0.7; }
+
+      .popup-camera {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 14px;
+        background: rgba(0, 0, 0, 0.45);
+      }
+      .popup-camera ha-card {
+        height: 100%;
+        border: none;
+        box-shadow: none;
+        background: transparent;
+      }
+      .popup-camera hui-image,
+      .popup-camera img,
+      .popup-camera video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
 
       .popup-status {
         text-align: center;
