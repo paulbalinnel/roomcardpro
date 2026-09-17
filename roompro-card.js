@@ -597,6 +597,15 @@ class RoomProCardEditor extends LitElement {
               @change=${(e) => this._buttonChanged(i, 'camera_audio', e.target.checked)} />
             Play camera audio in the popup
           </label>
+          <ha-entity-picker
+            .hass=${this.hass}
+            .value=${ent.camera_trigger || ''}
+            label="Auto-open trigger entity (optional, e.g. the doorbell automation)"
+            allow-custom-entity
+            @value-changed=${(e) => this._buttonChanged(i, 'camera_trigger', e.detail.value)}>
+          </ha-entity-picker>
+          ${this._text('Auto-close after seconds (0 = stay open until closed)', ent.camera_auto_close, (v) => this._buttonChanged(i, 'camera_auto_close', parseInt(v, 10) || 0))}
+          ${this._text('Only auto-open on these browser_mod IDs (comma-separated, blank = all)', (ent.camera_trigger_browsers || []).join(', '), (v) => this._buttonChanged(i, 'camera_trigger_browsers', v.split(',').map((x) => x.trim()).filter(Boolean)))}
           <div class="hint">
             Shows a live feed at the top of this button's popup. The stream
             starts when the popup opens and stops when it closes.
@@ -995,12 +1004,14 @@ class RoomProCard extends LitElement {
     this._hass = hass;
     if (this._modalCard) this._modalCard.hass = hass;
     if (this._camCard) this._camCard.hass = hass;
+    this._checkCameraTriggers(hass);
   }
 
   disconnectedCallback() {
     if (super.disconnectedCallback) super.disconnectedCallback();
     this._closeCardPopup();
     this._removePopupPortal();
+    clearTimeout(this._autoCloseTimer);
   }
 
   // A popup that carries a camera is portaled to <body>: the in-card overlay
@@ -1242,8 +1253,56 @@ class RoomProCard extends LitElement {
   }
 
   _closePopup() {
+    clearTimeout(this._autoCloseTimer);
     this._activePopup = null;
     this._destroyCamCard();
+  }
+
+  // ---- Auto-open on a trigger entity ---------------------------------
+  // automation.* fires on every last_triggered change (e.g. a doorbell
+  // webhook automation); event.* on its timestamp state; anything else
+  // on a transition to 'on'. The first hass seen only records a baseline,
+  // so a page load never opens the popup.
+  _triggerSignature(st) {
+    if (!st) return null;
+    const domain = st.entity_id.split('.')[0];
+    if (domain === 'automation') return st.attributes.last_triggered || null;
+    if (domain === 'event') return st.state;
+    return st.state === 'on' ? st.last_changed : 'off';
+  }
+
+  // Optional device filter using browser_mod's per-browser id.
+  _thisBrowserAllowed(list) {
+    if (!Array.isArray(list) || !list.length) return true;
+    let id = null;
+    try { id = localStorage.getItem('browser_mod-browser-id'); } catch (e) { /* no storage */ }
+    return !!id && list.includes(id);
+  }
+
+  _checkCameraTriggers(hass) {
+    if (!hass || !this._config || !Array.isArray(this._config.entities)) return;
+    if (!this._trigSig) this._trigSig = {};
+    this._config.entities.forEach((ent, i) => {
+      if (!ent || !ent.camera || !ent.camera_trigger) return;
+      const sig = this._triggerSignature(hass.states[ent.camera_trigger]);
+      const prev = this._trigSig[i];
+      this._trigSig[i] = sig;
+      if (prev === undefined || sig === null || sig === 'off' || sig === prev) return;
+      if (!this._thisBrowserAllowed(ent.camera_trigger_browsers)) return;
+      const kind = ent.type === 'cover' ? 'cover' : (ent.type === 'audio' ? 'audio' : 'lock');
+      const cur = this._activePopup;
+      if (!(cur && cur.ent === ent)) this._togglePopup(kind, ent);
+      this._armAutoClose(ent);
+    });
+  }
+
+  _armAutoClose(ent) {
+    clearTimeout(this._autoCloseTimer);
+    const secs = Number(ent.camera_auto_close) || 0;
+    if (secs <= 0) return;
+    this._autoCloseTimer = setTimeout(() => {
+      if (this._activePopup && this._activePopup.ent === ent) this._closePopup();
+    }, secs * 1000);
   }
 
   // Build HA's own picture-entity card so the popup inherits its stream
