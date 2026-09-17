@@ -1006,6 +1006,16 @@ class RoomProCard extends LitElement {
   // A popup that carries a camera is portaled to <body>: the in-card overlay
   // is bounded by the card's own height (260–388px), which a 16:9 feed
   // cannot fit inside. Same approach as the Card popup.
+  // Portals must live inside <home-assistant>'s tree, not document.body:
+  // HA's ha-camera-stream (and other elements) receive their API and
+  // connection via Lit context, resolved by a context-request event that
+  // bubbles up to a provider on the HA root. Outside that tree the event
+  // finds nothing and streams never start.
+  _portalRoot() {
+    const ha = document.querySelector('home-assistant');
+    return (ha && ha.shadowRoot) || document.body;
+  }
+
   _popupIsPortaled() {
     const p = this._activePopup;
     return !!(p && p.ent && p.ent.camera);
@@ -1020,7 +1030,7 @@ class RoomProCard extends LitElement {
     style.textContent = RoomProCard.styles.cssText;
     const mount = document.createElement('div');
     shadow.append(style, mount);
-    document.body.appendChild(host);
+    this._portalRoot().appendChild(host);
     this._popupPortal = { host, mount };
     return this._popupPortal;
   }
@@ -1087,7 +1097,7 @@ class RoomProCard extends LitElement {
     this._modalKeyHandler = (e) => { if (e.key === 'Escape') this._closeCardPopup(); };
     window.addEventListener('keydown', this._modalKeyHandler);
 
-    document.body.appendChild(overlay);
+    this._portalRoot().appendChild(overlay);
     this._modalOverlay = overlay;
     this._modalCard = card;
   }
@@ -1268,7 +1278,7 @@ class RoomProCard extends LitElement {
   // counts as a user gesture, so unmuting here is allowed by autoplay
   // policy. The <video> appears asynchronously once the stream starts,
   // so poll briefly for it.
-  _unmuteCam(card, token, tries = 40) {
+  _unmuteCam(card, token, tries = 100) {
     const findVideo = (root) => {
       for (const el of root.querySelectorAll('*')) {
         if (el.tagName === 'VIDEO') return el;
