@@ -1276,26 +1276,30 @@ class RoomProCard extends LitElement {
 
   // HA renders camera streams muted. The popup opens from a tap, which
   // counts as a user gesture, so unmuting here is allowed by autoplay
-  // policy. The <video> appears asynchronously once the stream starts,
-  // so poll briefly for it.
-  _unmuteCam(card, token, tries = 100) {
-    const findVideo = (root) => {
+  // policy. HA swaps between an HLS and a WebRTC player as the stream
+  // negotiates, each with its own <video>, so set `muted` on
+  // ha-camera-stream itself (which both players inherit) and keep
+  // re-applying for a while rather than stopping at the first <video>.
+  _unmuteCam(card, token, tries = 50) {
+    const walk = (root, fn) => {
       for (const el of root.querySelectorAll('*')) {
-        if (el.tagName === 'VIDEO') return el;
-        if (el.shadowRoot) { const v = findVideo(el.shadowRoot); if (v) return v; }
+        fn(el);
+        if (el.shadowRoot) walk(el.shadowRoot, fn);
       }
-      return null;
     };
-    const video = card.shadowRoot ? findVideo(card.shadowRoot) : null;
-    if (video) {
-      video.muted = false;
-      video.volume = 1;
-      const p = video.play && video.play();
-      if (p && p.catch) p.catch(() => {});
-      return;
+    if (card.shadowRoot) {
+      walk(card.shadowRoot, (el) => {
+        if (el.tagName === 'HA-CAMERA-STREAM' && el.muted !== false) el.muted = false;
+        if (el.tagName === 'VIDEO' && el.muted) {
+          el.muted = false;
+          el.volume = 1;
+          const p = el.play && el.play();
+          if (p && p.catch) p.catch(() => {});
+        }
+      });
     }
     if (tries > 0 && this._camToken === token) {
-      setTimeout(() => this._unmuteCam(card, token, tries - 1), 250);
+      setTimeout(() => this._unmuteCam(card, token, tries - 1), 500);
     }
   }
 
