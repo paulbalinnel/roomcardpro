@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js";
+import { LitElement, html, css, render } from "https://cdn.jsdelivr.net/gh/lit/dist@3/all/lit-all.min.js";
 
 class RoomProCardEditor extends LitElement {
   static get properties() {
@@ -994,6 +994,46 @@ class RoomProCard extends LitElement {
   disconnectedCallback() {
     if (super.disconnectedCallback) super.disconnectedCallback();
     this._closeCardPopup();
+    this._removePopupPortal();
+  }
+
+  // A popup that carries a camera is portaled to <body>: the in-card overlay
+  // is bounded by the card's own height (260–388px), which a 16:9 feed
+  // cannot fit inside. Same approach as the Card popup.
+  _popupIsPortaled() {
+    const p = this._activePopup;
+    return !!(p && p.ent && p.ent.camera);
+  }
+
+  _ensurePopupPortal() {
+    if (this._popupPortal) return this._popupPortal;
+    const host = document.createElement('div');
+    host.className = 'roompro-popup-portal';
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RoomProCard.styles.cssText;
+    const mount = document.createElement('div');
+    shadow.append(style, mount);
+    document.body.appendChild(host);
+    this._popupPortal = { host, mount };
+    return this._popupPortal;
+  }
+
+  _removePopupPortal() {
+    if (!this._popupPortal) return;
+    // Render empty first so Lit disconnects the camera card cleanly.
+    render(html``, this._popupPortal.mount);
+    this._popupPortal.host.remove();
+    this._popupPortal = null;
+  }
+
+  updated(changed) {
+    if (super.updated) super.updated(changed);
+    if (this._popupIsPortaled()) {
+      render(this._renderPopup(true), this._ensurePopupPortal().mount);
+    } else {
+      this._removePopupPortal();
+    }
   }
 
   // Full-screen modal that renders any Lovelace card config (ent.card) using
@@ -1203,6 +1243,7 @@ class RoomProCard extends LitElement {
         camera_view: 'live',
         show_name: false,
         show_state: false,
+        aspect_ratio: '16:9',
       });
       // The popup may have been closed or switched while we awaited.
       if (this._camToken !== token) return;
@@ -1302,7 +1343,7 @@ class RoomProCard extends LitElement {
           ${entities.map(ent => this._renderButton(ent))}
         </div>
 
-        ${this._renderPopup()}
+        ${this._popupIsPortaled() ? '' : this._renderPopup()}
       </div>
     `;
   }
@@ -1412,7 +1453,7 @@ class RoomProCard extends LitElement {
     return parts.join(';');
   }
 
-  _renderPopup() {
+  _renderPopup(portaled = false) {
     if (!this._activePopup) return html``;
 
     const { kind, ent } = this._activePopup;
@@ -1530,9 +1571,11 @@ class RoomProCard extends LitElement {
       `;
     }
 
+    // The portal is outside the card, so the font-size var must ride along.
+    const pf = this._config.popup_font_size ? `--popup-font-size:${this._config.popup_font_size}px` : '';
     return html`
-      <div class="popup-overlay" @click=${() => this._closePopup()}>
-        <div class="popup-card" @click=${(e) => e.stopPropagation()}>
+      <div class="popup-overlay ${portaled ? 'fullscreen' : ''}" style=${pf} @click=${() => this._closePopup()}>
+        <div class="popup-card ${portaled ? 'wide' : ''}" @click=${(e) => e.stopPropagation()}>
           <div class="popup-header">
             <span>${title}</span>
             <ha-icon icon="mdi:close" @click=${() => this._closePopup()}></ha-icon>
@@ -1774,6 +1817,11 @@ class RoomProCard extends LitElement {
         animation: fadeIn 0.2s ease;
       }
 
+      .popup-overlay.fullscreen {
+        position: fixed;
+        z-index: 9999;
+      }
+
       .popup-card {
         /* The card is wide but short, so the popup is wide and height-capped. */
         width: 92%;
@@ -1786,6 +1834,11 @@ class RoomProCard extends LitElement {
         padding: 14px 16px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         box-sizing: border-box;
+      }
+
+      .popup-card.wide {
+        max-width: 720px;
+        max-height: 90vh;
       }
 
       .popup-header {
@@ -1812,11 +1865,10 @@ class RoomProCard extends LitElement {
         box-shadow: none;
         background: transparent;
       }
-      .popup-camera hui-image,
       .popup-camera img,
       .popup-camera video {
+        display: block;
         width: 100%;
-        height: 100%;
         object-fit: cover;
       }
 
