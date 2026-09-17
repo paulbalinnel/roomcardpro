@@ -104,6 +104,9 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `camera` | (lock / cover / media player) camera entity shown live at the top of the popup |
 | `camera_aspect` | (with `camera`) force a ratio box, e.g. `16:9`; blank uses the camera's own shape |
 | `camera_audio` | (with `camera`) `true` to unmute the stream's audio while the popup is open |
+| `camera_trigger` | (with `camera`) entity that auto-opens the popup: an `automation.*` opens on every run (`last_triggered`), an `event.*` on each event, anything else when it turns `on` |
+| `camera_auto_close` | (with `camera_trigger`) seconds after an auto-open before the popup closes itself; `0` = stay open |
+| `camera_trigger_browsers` | (with `camera_trigger`) list of browser_mod browser IDs; only those devices auto-open (blank = all) |
 | `channels` | (media player) channel shortcuts `{ name, logo, service, service_data }` shown in the popup |
 | `service` / `service_data` | (custom) `domain.service` and optional data |
 
