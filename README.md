@@ -33,6 +33,7 @@ For the intended look, put the cards in a **Panel** view and hide the header/sid
 - 🟢 **Status indicators** — one icon per entity (motion, media, locks, …), each coloured by its own state
 - 🎛️ **Themeable buttons** — per-button background, edge, and a two-state glow (on/off colours, or no glow)
 - 🪟 **In-card popups** for media, covers, locks, scenes and select options
+- 📹 **Live camera in a popup** — add `camera:` to a lock, cover or media button and the feed plays while the popup is open
 - 🎚️ **Font-size controls** for the room name, sensor strip and popups
 - 🧩 **Visual editor** with collapsible sections — every option is clickable
 
@@ -56,7 +57,7 @@ For the intended look, put the cards in a **Panel** view and hide the header/sid
 | **Light** | Toggle a light |
 | **Switch** | Toggle a switch |
 | **Cover / blind** | Popup: open / stop / close |
-| **Lock / door** | Popup: lock / unlock |
+| **Lock / door** | Popup: lock / unlock (optional live camera) |
 | **Media player** | Popup: power, volume up/down, mute |
 | **Scene** | Popup of scene buttons |
 | **Input select / select** | Popup of the entity's options (auto-filled) |
@@ -100,6 +101,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `font_size` | Label font size (px) |
 | `scenes` | (scene) list of `{ entity, name, icon }` |
 | `options` | (select) optional list of `{ option, name, icon }` |
+| `camera` | (lock / cover / media player) camera entity shown live at the top of the popup |
 | `channels` | (media player) channel shortcuts `{ name, logo, service, service_data }` shown in the popup |
 | `service` / `service_data` | (custom) `domain.service` and optional data |
 
