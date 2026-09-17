@@ -103,6 +103,7 @@ Each button reflects its entity's live on/off state via the two-state glow.
 | `options` | (select) optional list of `{ option, name, icon }` |
 | `camera` | (lock / cover / media player) camera entity shown live at the top of the popup |
 | `camera_aspect` | (with `camera`) force a ratio box, e.g. `16:9`; blank uses the camera's own shape |
+| `camera_audio` | (with `camera`) `true` to unmute the stream's audio while the popup is open |
 | `channels` | (media player) channel shortcuts `{ name, logo, service, service_data }` shown in the popup |
 | `service` / `service_data` | (custom) `domain.service` and optional data |
 
