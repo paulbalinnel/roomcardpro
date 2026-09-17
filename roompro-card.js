@@ -592,6 +592,11 @@ class RoomProCardEditor extends LitElement {
             @value-changed=${(e) => this._buttonChanged(i, 'camera', e.detail.value)}>
           </ha-entity-picker>
           ${this._text('Camera aspect ratio (optional, e.g. 16:9 — blank = camera\'s own)', ent.camera_aspect, (v) => this._buttonChanged(i, 'camera_aspect', v))}
+          <label class="noglow" style="font-size:0.8rem;">
+            <input type="checkbox" .checked=${!!ent.camera_audio}
+              @change=${(e) => this._buttonChanged(i, 'camera_audio', e.target.checked)} />
+            Play camera audio in the popup
+          </label>
           <div class="hint">
             Shows a live feed at the top of this button's popup. The stream
             starts when the popup opens and stops when it closes.
@@ -1222,7 +1227,7 @@ class RoomProCard extends LitElement {
     } else {
       this._destroyCamCard();
       this._activePopup = { kind, ent };
-      if (ent && ent.camera) this._buildCamCard(ent.camera, ent.camera_aspect);
+      if (ent && ent.camera) this._buildCamCard(ent.camera, ent.camera_aspect, ent.camera_audio);
     }
   }
 
@@ -1233,7 +1238,7 @@ class RoomProCard extends LitElement {
 
   // Build HA's own picture-entity card so the popup inherits its stream
   // handling (HLS/WebRTC, retries) instead of re-implementing any of it.
-  async _buildCamCard(entityId, aspect) {
+  async _buildCamCard(entityId, aspect, audio) {
     const token = Symbol('cam');
     this._camToken = token;
     try {
@@ -1253,8 +1258,34 @@ class RoomProCard extends LitElement {
       if (this._camToken !== token) return;
       card.hass = this._hass;
       this._camCard = card;
+      if (audio) this._unmuteCam(card, token);
     } catch (err) {
       console.error('RoomPro Card: could not build camera card', err);
+    }
+  }
+
+  // HA renders camera streams muted. The popup opens from a tap, which
+  // counts as a user gesture, so unmuting here is allowed by autoplay
+  // policy. The <video> appears asynchronously once the stream starts,
+  // so poll briefly for it.
+  _unmuteCam(card, token, tries = 40) {
+    const findVideo = (root) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.tagName === 'VIDEO') return el;
+        if (el.shadowRoot) { const v = findVideo(el.shadowRoot); if (v) return v; }
+      }
+      return null;
+    };
+    const video = card.shadowRoot ? findVideo(card.shadowRoot) : null;
+    if (video) {
+      video.muted = false;
+      video.volume = 1;
+      const p = video.play && video.play();
+      if (p && p.catch) p.catch(() => {});
+      return;
+    }
+    if (tries > 0 && this._camToken === token) {
+      setTimeout(() => this._unmuteCam(card, token, tries - 1), 250);
     }
   }
 
